@@ -166,7 +166,7 @@ CREATE TABLE tetiers
 ( id             char(20)   unique not null
 , titre_tm       text       not null
 , niv            int        not null
-, conteneur_id   int        not null
+, conteneur_id   char(20)   not null
 );
 
 CREATE INDEX tetiers_id_idx ON tetiers (id);

@@ -629,7 +629,7 @@ def main():
 
     # Look for new archives in the given directory
     print("> last_update is", last_update)
-    archive_re = re.compile(r'(.+_)?'+args.base.lower()+r'(?P<global>_global)?_(?P<date>[0-9]{8}-[0-9]{6})\..+', flags=re.IGNORECASE)
+    archive_re = re.compile(r'(.+_)?'+args.base.lower()+r'(?P<global>_global|_)?_(?P<date>[0-9]{8}-[0-9]{6})\..+', flags=re.IGNORECASE)
     skipped = 0
     archives = sorted([
         (m.group('date'), bool(m.group('global')), m.group(0)) for m in [
