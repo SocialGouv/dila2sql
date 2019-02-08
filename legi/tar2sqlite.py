@@ -77,15 +77,14 @@ def suppress(base, get_table, db, liste_suppression):
             elif table == 'sections':
                 db.run("""
                     DELETE FROM sommaires
-                     WHERE cid = ?
-                       AND parent = ?
+                     WHERE parent = ?
                        AND _source = 'section_ta_liens'
                 """, (text_cid, text_id))
                 count(counts, 'delete from sommaires', db.changes())
             elif table == 'textes_structs':
                 db.run("""
                     DELETE FROM sommaires
-                     WHERE cid = ?
+                     WHERE parent = ?
                        AND _source = 'struct/' || ?
                 """, (text_cid, text_id))
                 count(counts, 'delete from sommaires', db.changes())
@@ -302,18 +301,15 @@ def process_archive(db, archive_path, process_links=True):
                             data['sommaires'] = list(db.all("""
                                 SELECT *
                                   FROM sommaires
-                                 WHERE cid = ?
-                                   AND parent = ?
+                                 WHERE parent = ?
                                    AND _source = 'section_ta_liens'
                             """, (text_id, text_id), to_dict=True))
                         elif table == 'textes_structs':
-                            source = 'struct/' + text_id
                             data['sommaires'] = list(db.all("""
                                 SELECT *
                                   FROM sommaires
-                                 WHERE cid = ?
-                                   AND _source = ?
-                            """, (text_cid, source), to_dict=True))
+                                 WHERE _source = ?
+                            """, ('struct/' + text_id), to_dict=True))
                         data = {k: v for k, v in data.items() if v}
                         insert('duplicate_files', {
                             'id': text_id,
@@ -366,7 +362,6 @@ def process_archive(db, archive_path, process_links=True):
                     attrs['parent'] = attr(parents[-1], 'id')
                 sommaires = [
                     {
-                        'cid': text_cid,
                         'parent': section_id,
                         'element': attr(lien, 'id'),
                         'debut': attr(lien, 'debut'),
@@ -386,7 +381,7 @@ def process_archive(db, archive_path, process_links=True):
                 scrape_tags(attrs, root, TEXTELR_TAGS)
                 sommaires = [
                     {
-                        'cid': text_cid,
+                        'parent': text_cid,
                         'element': attr(lien, 'id'),
                         'debut': attr(lien, 'debut'),
                         'fin': attr(lien, 'fin'),
@@ -501,28 +496,26 @@ def process_archive(db, archive_path, process_links=True):
                 if tag == 'SECTION_TA':
                     db.run("""
                         DELETE FROM sommaires
-                         WHERE cid = ?
-                           AND parent = ?
+                         WHERE parent = ?
                            AND _source = 'section_ta_liens'
-                    """, (text_cid, section_id))
+                    """, (section_id,))
                     count(counts, 'delete from sommaires', db.changes())
                 elif tag == 'TEXTELR':
                     db.run("""
                         DELETE FROM sommaires
-                         WHERE cid = ?
-                           AND _source = ?
-                    """, (text_cid, 'struct/' + text_id))
+                         WHERE _source = ?
+                    """, ('struct/' + text_id, ))
                     count(counts, 'delete from sommaires', db.changes())
                 elif tag == 'IDCC':
                     db.run("""
                         DELETE FROM sommaires
                          WHERE _source = ?
-                    """, (text_id))
+                    """, (text_id, ))
                     count(counts, 'delete from sommaires', db.changes())
                     db.run("""
                         DELETE FROM tetiers
                          WHERE conteneur_id = ?
-                    """, (text_id))
+                    """, (text_id, ))
                     count(counts, 'delete from tetiers', db.changes())
                 if tag in ('ARTICLE', 'TEXTE_VERSION'):
                     db.run("""
