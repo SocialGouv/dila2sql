@@ -72,6 +72,7 @@ CREATE TABLE articles
 ( id             char(20)   unique not null
 , section        char(20)   -- REFERENCES sections(id)
 , num            text
+, titre          text
 , etat           text
 , date_debut     day
 , date_fin       day
