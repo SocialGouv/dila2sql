@@ -415,6 +415,9 @@ def process_archive(db, archive_path, process_links=True):
                             {
                                 'parent': text_id,
                                 'element': tetier_id,
+                                'debut': attr(lien, 'debut'),
+                                'fin': attr(lien, 'fin'),
+                                'etat': attr(lien, 'etat'),
                                 'position': i,
                                 '_source': text_id,
                             }
