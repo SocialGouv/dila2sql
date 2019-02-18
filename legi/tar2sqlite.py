@@ -79,20 +79,20 @@ def suppress(base, get_table, db, liste_suppression):
                     DELETE FROM sommaires
                      WHERE parent = ?
                        AND _source = 'section_ta_liens'
-                """, (text_cid, text_id))
+                """, (text_id,))
                 count(counts, 'delete from sommaires', db.changes())
             elif table == 'textes_structs':
                 db.run("""
                     DELETE FROM sommaires
                      WHERE parent = ?
                        AND _source = 'struct/' || ?
-                """, (text_cid, text_id))
+                """, (text_id, text_id))
                 count(counts, 'delete from sommaires', db.changes())
             elif table == "conteneurs":
                 db.run("""
                     DELETE FROM sommaires
                     WHERE _source = ?
-                """, (text_id))
+                """, (text_id, ))
             # And delete the associated row in textes_versions_brutes if it exists
             if table == 'textes_versions':
                 db.run("DELETE FROM textes_versions_brutes WHERE id = ?", (text_id,))
@@ -303,13 +303,13 @@ def process_archive(db, archive_path, process_links=True):
                                   FROM sommaires
                                  WHERE parent = ?
                                    AND _source = 'section_ta_liens'
-                            """, (text_id, text_id), to_dict=True))
+                            """, (text_id,), to_dict=True))
                         elif table == 'textes_structs':
                             data['sommaires'] = list(db.all("""
                                 SELECT *
                                   FROM sommaires
                                  WHERE _source = ?
-                            """, ('struct/' + text_id), to_dict=True))
+                            """, ("struct/%s" % text_id,), to_dict=True))
                         data = {k: v for k, v in data.items() if v}
                         insert('duplicate_files', {
                             'id': text_id,
