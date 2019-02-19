@@ -55,7 +55,7 @@ def suppress(base, get_table, db, liste_suppression):
             db.run("""
                 DELETE FROM {0}
                 WHERE id = ?
-            """.format(table), (text_id))
+            """.format(table), (text_id, ))
         else:
             db.run("""
                 DELETE FROM {0}
@@ -415,9 +415,9 @@ def process_archive(db, archive_path, process_links=True):
                             {
                                 'parent': text_id,
                                 'element': tetier_id,
-                                'debut': attr(lien, 'debut'),
-                                'fin': attr(lien, 'fin'),
-                                'etat': attr(lien, 'etat'),
+                                'debut': attr(tm, 'debut'),
+                                'fin': attr(tm, 'fin'),
+                                'etat': attr(tm, 'etat'),
                                 'position': i,
                                 '_source': text_id,
                             }
