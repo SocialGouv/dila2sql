@@ -4,11 +4,10 @@ Downloads the LEGI tarballs from the official FTP server.
 
 import argparse
 import os
-from urllib.request import urlopen, Request
+from urllib.request import urlopen
 import lxml.html
 import re
 import asyncio
-import urllib
 import aiohttp
 import aiofiles
 import backoff
@@ -16,8 +15,14 @@ import backoff
 
 DILA_URL = "https://echanges.dila.gouv.fr/OPENDATA"
 
+HANDLED_EXCEPTIONS = (
+    aiohttp.ClientError,
+    aiohttp.client_exceptions.ServerDisconnectedError,
+    aiohttp.client_exceptions.ClientPayloadError
+)
 
-@backoff.on_exception(backoff.expo, aiohttp.ClientError, max_time=5)
+
+@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_time=5)
 async def fetch_size(base, filename, session):
     url = "%s/%s/%s" % (DILA_URL, base, filename)
     async with session.head(url) as response:
@@ -31,10 +36,11 @@ async def fetch_sizes(base, filenames):
 
 
 def filter_link(filename, base):
-    return bool(re.match("%s_[0-9\-]+\.tar\.gz" % base, filename)) \
-        or bool(re.match("Freemium_%s_(global)?_[0-9\-]+\.tar\.gz" % base.lower(), filename))
+    return bool(re.match(r"%s_[0-9\-]+\.tar\.gz" % base, filename)) \
+        or bool(re.match(r"Freemium_%s_(global)?_[0-9\-]+\.tar\.gz" % base.lower(), filename))
 
-@backoff.on_exception(backoff.expo, (aiohttp.ClientError, aiohttp.client_exceptions.ServerDisconnectedError, aiohttp.client_exceptions.ClientPayloadError), max_time=20)
+
+@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_time=20)
 async def download_file(base, filename, dst_dir, session):
     filepath = os.path.join(dst_dir, filename)
     url = "%s/%s/%s" % (DILA_URL, base, filename)
@@ -45,7 +51,7 @@ async def download_file(base, filename, dst_dir, session):
             await f.close()
 
 
-@backoff.on_exception(backoff.expo, (aiohttp.ClientError, aiohttp.client_exceptions.ServerDisconnectedError), max_time=20)
+@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_time=20)
 async def download_files(base, filenames, dst_dir):
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=10)) as session:
         tasks = [
@@ -85,8 +91,7 @@ def download_legi(dst_dir, base='LEGI'):
 
     invalid_files = []
     for filename in common_files:
-        if ('size' in remote_files[filename] and
-            local_files[filename]['size'] != remote_files[filename]['size']):
+        if ('size' in remote_files[filename] and local_files[filename]['size'] != remote_files[filename]['size']):
             invalid_files.append(filename)
     print(
         '{} remote files, {} common files ({} invalid), {} missing files'
