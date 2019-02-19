@@ -155,6 +155,7 @@ CREATE TABLE conteneurs
 ( id           char(20)   unique not null
 , titre        text
 , etat         text
+, nature       text
 , num          text
 , date_publi   day
 , mtime        int        not null
