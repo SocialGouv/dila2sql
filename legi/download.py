@@ -9,13 +9,16 @@ import lxml.html
 import re
 import asyncio
 import urllib
-from aiohttp import ClientSession, TCPConnector
+import aiohttp
+import aiofiles
+import backoff
 
 
 DILA_URL = "https://echanges.dila.gouv.fr/OPENDATA"
 BASE_URL = "%s/KALI" % DILA_URL
 
 
+@backoff.on_exception(backoff.expo, aiohttp.ClientError, max_time=5)
 async def fetch_size(filename, session):
     url = "%s/%s" % (BASE_URL, filename)
     async with session.head(url) as response:
@@ -23,7 +26,7 @@ async def fetch_size(filename, session):
 
 
 async def fetch_sizes(filenames):
-    async with ClientSession(connector=TCPConnector(limit=10)) as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=20)) as session:
         tasks = [asyncio.ensure_future(fetch_size(f, session)) for f in filenames]
         return await asyncio.gather(*tasks)
 
@@ -32,12 +35,25 @@ def filter_link(filename, base):
     return bool(re.match("%s_[0-9\-]+\.tar\.gz" % base, filename)) \
         or bool(re.match("Freemium_%s_(global)?_[0-9\-]+\.tar\.gz" % base.lower(), filename))
 
-
-def download_file(filename, dst_dir):
-    print('Downloading the file {}'.format(filename))
+@backoff.on_exception(backoff.expo, (aiohttp.ClientError, aiohttp.client_exceptions.ServerDisconnectedError, aiohttp.client_exceptions.ClientPayloadError), max_time=20)
+async def download_file(filename, dst_dir, session):
     filepath = os.path.join(dst_dir, filename)
     url = "%s/%s" % (BASE_URL, filename)
-    urllib.request.urlretrieve(url, filepath)
+    async with session.get(url) as resp:
+        if resp.status == 200:
+            f = await aiofiles.open(filepath, mode='wb')
+            await f.write(await resp.read())
+            await f.close()
+
+
+@backoff.on_exception(backoff.expo, (aiohttp.ClientError, aiohttp.client_exceptions.ServerDisconnectedError), max_time=20)
+async def download_files(filenames, dst_dir):
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=10)) as session:
+        tasks = [
+            asyncio.ensure_future(download_file(f, dst_dir, session))
+            for f in filenames
+        ]
+        return await asyncio.gather(*tasks)
 
 
 def download_legi(dst_dir, base='LEGI'):
@@ -83,9 +99,12 @@ def download_legi(dst_dir, base='LEGI'):
     for filename in invalid_files:
         print('Removing file {} because it has a different size'.format(filename))
         os.remove(os.path.join(dst_dir, filename))
-        download_file(filename, dst_dir)
-    for filename in missing_files:
-        download_file(filename, dst_dir)
+
+    files_to_download = invalid_files + missing_files
+    print("Starting to download %s files ..." % len(files_to_download))
+    loop = asyncio.get_event_loop()
+    future = asyncio.ensure_future(download_files(files_to_download, dst_dir))
+    loop.run_until_complete(future)
 
 
 if __name__ == '__main__':
