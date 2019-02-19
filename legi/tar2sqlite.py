@@ -403,6 +403,7 @@ def process_archive(db, archive_path, process_links=True):
                 scrape_tags(attrs, root, TEXTE_VERSION_TAGS, unwrap=True)
             elif tag == 'IDCC':
                 assert table == 'conteneurs'
+                attrs['nature'] = nature
                 meta_spec = meta.find('META_SPEC')
                 meta_conteneur = meta_spec.find('META_CONTENEUR')
                 scrape_tags(attrs, meta_conteneur, META_CONTENEUR_TAGS)
