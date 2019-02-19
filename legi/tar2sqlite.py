@@ -46,7 +46,9 @@ def suppress(base, get_table, db, liste_suppression):
     counts = {}
     for path in liste_suppression:
         parts = path.split('/')
-        assert parts[0] == base.lower()
+        if parts[0] != base.lower():
+            print('[warning] cannot suppress {0}'.format(path))
+            continue
         text_id = parts[-1]
         text_cid = parts[11] if base == 'LEGI' else text_id
         assert len(text_id) == 20
@@ -580,8 +582,8 @@ def main():
     args = p.parse_args()
 
     if args.base != 'LEGI' and not args.raw:
-        print("!> You need to use the --raw option when working with bases other than LEGI.")
-        raise SystemExit(1)
+        # defaults to raw
+        args.raw = True
 
     if args.base != 'LEGI' and args.anomalies:
         print("!> The --anomalies option can only be used with the LEGI base")
