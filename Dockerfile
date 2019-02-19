@@ -21,8 +21,8 @@ ENV TARBALLS_PATH /tarballs
 
 WORKDIR $LEGI_PATH
 
-COPY . ./legi.py
-
-WORKDIR $LEGI_PATH/legi.py
+COPY requirements.txt .
 
 RUN pip install -r requirements.txt
+
+COPY . .
