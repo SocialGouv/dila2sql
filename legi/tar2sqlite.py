@@ -381,7 +381,7 @@ def process_archive(db, archive_path, process_links=True):
                 scrape_tags(attrs, root, TEXTELR_TAGS)
                 sommaires = [
                     {
-                        'parent': text_cid,
+                        'parent': text_id,
                         'element': attr(lien, 'id'),
                         'debut': attr(lien, 'debut'),
                         'fin': attr(lien, 'fin'),
