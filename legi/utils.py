@@ -55,13 +55,14 @@ ROW_FACTORIES = {
 }
 
 
-def connect_db(address, row_factory=None, create_schema=True, update_schema=True, pragmas=()):
-    db = DB(address)
-    db.address = address
-    if row_factory:
-        if not callable(row_factory):
-            row_factory = ROW_FACTORIES[row_factory]
-        db.row_factory = row_factory
+def connect_db(dila_base_name, row_factory=None, create_schema=True, update_schema=True, pragmas=()):
+    db = PostgresqlDatabase(
+        'kali',  # Required by Peewee.
+        user='',
+        password='secret',
+        host='db.mysite.com'
+    )
+    # todo handle row_factory = namedtuple
     db.insert = inserter(db)
     db.update = updater(db)
     db.run = db.execute

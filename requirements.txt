@@ -4,3 +4,4 @@ tqdm
 aiohttp
 aiofiles
 backoff
+peewee
