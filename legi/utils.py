@@ -4,10 +4,11 @@ from itertools import chain, repeat
 import os
 import os.path
 import re
-from sqlite3 import Connection, IntegrityError, OperationalError, ProgrammingError, Row
+from sqlite3 import IntegrityError, OperationalError, ProgrammingError, Row
 import sre_parse
 import traceback
 from unicodedata import combining, decomposition, normalize
+from peewee import SqliteDatabase
 
 
 if not hasattr(re, 'Match'):
@@ -36,7 +37,7 @@ def patch_object(obj, attr, value):
             setattr(obj, attr, backup)
 
 
-class DB(Connection):
+class DB(SqliteDatabase):
     pass
 
 
@@ -55,14 +56,16 @@ ROW_FACTORIES = {
 }
 
 
-def connect_db(dila_base_name, row_factory=None, create_schema=True, update_schema=True, pragmas=()):
-    db = PostgresqlDatabase(
-        'kali',  # Required by Peewee.
-        user='',
-        password='secret',
-        host='db.mysite.com'
-    )
-    # todo handle row_factory = namedtuple
+def connect_db(address, row_factory=None, create_schema=True, update_schema=True, pragmas=()):
+    db = DB(address, pragmas=pragmas)
+    db.address = address
+
+    # TODO
+    # if row_factory:
+    #     if not callable(row_factory):
+    #         row_factory = ROW_FACTORIES[row_factory]
+    #     db.row_factory = row_factory
+
     db.insert = inserter(db)
     db.update = updater(db)
     db.run = db.execute
@@ -113,7 +116,7 @@ def inserter(conn):
         keys = ','.join(keys)
         placeholders = ','.join(repeat('?', len(attrs)))
         try:
-            conn.execute("""
+            conn.execute_sql("""
                 INSERT {0} INTO {1} ({2}) VALUES ({3})
             """.format(or_clause, table, keys, placeholders), values)
         except IntegrityError:
@@ -133,7 +136,7 @@ def updater(conn):
         placeholders, values = dict2sql(attrs)
         where_placeholders, where_values = dict2sql(where, joiner=' AND ')
         try:
-            conn.execute(
+            conn.execute_sql(
                 "UPDATE {0} SET {1} WHERE {2}".format(
                     table, placeholders, where_placeholders
                 ),
@@ -156,7 +159,9 @@ def iter_results(q):
 
 
 def run_migrations(db):
-    v = db.one("SELECT value FROM db_meta WHERE key = 'schema_version'") or 0
+    cursor = db.execute_sql("SELECT value FROM db_meta WHERE key = 'schema_version'")
+    row = cursor.fetchone()
+    v = row[0] if row is not None else 0
     if v == 0:
         db.insert('db_meta', dict(key='schema_version', value=v))
     migrations = open(ROOT + 'sql/migrations.sql').read().split('\n\n-- migration #')
@@ -170,18 +175,19 @@ def run_migrations(db):
         if sql == '!RECREATE!':
             print('Recreating DB from scratch (migration #%s)...' % n)
             db.close()
-            os.rename(db.address, db.address + '.back')
+            # TODO
+            # os.rename(db.address, db.address + '.back')
             return sql
         print('Running DB migration #%s...' % n)
         try:
-            db.executescript(sql)
+            db.cursor().executescript(sql)
         except (IntegrityError, ProgrammingError):
             traceback.print_exc()
             r = input('Have you already run this migration? (y/N) ')
             if r.lower() != 'y':
                 raise SystemExit(1)
-        db.run("UPDATE db_meta SET value = ? WHERE key = 'schema_version'", (n,))
-        db.commit()
+        db.execute_sql("UPDATE db_meta SET value = ? WHERE key = 'schema_version'", (n,))
+        # db.commit()
     return n - v
 
 
