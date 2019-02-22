@@ -504,7 +504,7 @@ def process_archive(db, archive_path, process_links=True):
                            AND _source = 'section_ta_liens'
                     """, (section_id,))
                     count(counts, 'delete from sommaires', db.changes())
-                elif tag == 'TEXTELR':
+                elif tag in ['TEXTELR', 'TEXTEKALI']:
                     db.run("""
                         DELETE FROM sommaires
                          WHERE _source = ?
