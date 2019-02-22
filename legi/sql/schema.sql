@@ -99,6 +99,9 @@ CREATE TABLE sommaires
 -- CREATE UNIQUE INDEX sommaires_parent_element_idx ON sommaires(parent, element);
 CREATE INDEX sommaires_parent_debut_fin_etat_num_idx ON sommaires (parent, debut, fin, etat, num);
 
+/* for deletes in tar2sqlite */
+CREATE INDEX sommaires_source_idx ON sommaires(_source);
+
 CREATE TABLE liens
 ( src_id      char(20)   not null
 , dst_cid     char(20)
