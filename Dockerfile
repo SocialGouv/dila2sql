@@ -1,7 +1,7 @@
 #
 # container docker pour legi.py
 #
-# http://github.com/SocialGouv/legi.py
+# https://github.com/SocialGouv/legi.py
 #
 # build     : `docker build -t legi.py  .`
 #

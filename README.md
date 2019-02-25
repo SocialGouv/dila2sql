@@ -2,9 +2,8 @@
 
 Fork de [Legilibre/legi.py](https://github.com/legilibre/legi.py) avec :
 
-- gestion des bases [LEGI](https://www.data.gouv.fr/fr/datasets/legi-codes-lois-et-reglements-consolides/)
-- gestion des bases [KALI](https://www.data.gouv.fr/fr/datasets/kali-conventions-collectives-nationales/)
-- gestion des bases [JORF](https://www.data.gouv.fr/fr/datasets/jorf-les-donnees-de-l-edition-lois-et-decrets-du-journal-officiel/)
+- gestion des bases [LEGI](https://www.data.gouv.fr/fr/datasets/legi-codes-lois-et-reglements-consolides/), [KALI](https://www.data.gouv.fr/fr/datasets/kali-conventions-collectives-nationales/) et [JORF](https://www.data.gouv.fr/fr/datasets/jorf-les-donnees-de-l-edition-lois-et-decrets-du-journal-officiel/)
+- Parallélisation des téléchargements
 - docker (optionnel)
 
 Les bases de données OpenData en XML sont très riches mais difficilement exploitable.
@@ -83,11 +82,11 @@ legi.py permet de :
 - connecter les différentes versions d'un texte entre elles
 - analyser les données pour détecter [les anomalies][anomalies]
 
-Plus d'informations sur le [site original](https://github.com/Legilibre/legi.py)
+Plus d'informations sur le [repo original](https://github.com/Legilibre/legi.py)
 
 ## Contribuer
 
-Les _Pull Requests_ sont bienvenues, n'hésitez pas à [ouvrir une discussion](https://github.com/SocialGouv/legi.py/issues/new) avant de commencer le travail, ça permet une meilleure coopération et coordination. Vous pouvez aussi vous présenter dans [le salon](https://github.com/SocialGouv/salon).
+Les _Pull Requests_ sont bienvenues. Vous pouvez aussi ouvrir des PRs sur le [repo original de Legilibre](https://github.com/Legilibre/legi.py)
 
 ## Projets connexes
 
