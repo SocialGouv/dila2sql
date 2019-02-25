@@ -176,3 +176,14 @@ CREATE TABLE tetiers
 );
 
 CREATE INDEX tetiers_id_idx ON tetiers (id);
+
+CREATE TABLE calipsos
+( id             char(20)   unique not null
+);
+CREATE INDEX calipsos_id_idx ON calipsos (id);
+
+CREATE TABLE articles_calipsos
+( article_id   char(20)   not null
+, calipso_id   char(20)   not null
+);
+CREATE UNIQUE INDEX article_calipsos_double_idx ON articles_calipsos (article_id, calipso_id);
