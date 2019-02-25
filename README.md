@@ -1,6 +1,8 @@
+# Legi.py
+
 legi.py est un module python qui peut :
 
-- créer une base de données SQLite à partir des archives de la base LEGI
+- créer une base de données SQLite à partir des archives des bases LEGI, JORF et KALI
 - mettre à jour automatiquement et incrémentalement cette BDD
 - normaliser les titres des textes
 - connecter les différentes versions d'un texte entre elles
@@ -35,14 +37,13 @@ sous forme de paquet [sur PyPI][legi-pypi].
 
 ## Création et maintenance de la BDD
 
-La première étape est de télécharger les archives LEGI depuis
-`ftp://echanges.dila.gouv.fr/LEGI/` :
+La première étape est de télécharger les dumps XML depuis le site officiel de la DILA:
 
-    python -m legi.download ./tarballs
+    python -m legi.download ./tarballs --base LEGI
 
 La deuxième étape est la conversion des archives en base SQLite :
 
-    python -m legi.tar2sqlite legi.sqlite ./tarballs [--raw]
+    python -m legi.tar2sqlite legi.sqlite ./tarballs --base LEGI [--raw]
 
 Cette opération peut prendre de quelques minutes à plusieurs heures selon votre
 machine et le nombre d'archives. Les deux caractéristiques importantes de votre
@@ -53,7 +54,7 @@ parallèle).
 La taille du fichier SQLite créé est environ 3,7Go (en décembre 2018).
 
 L'option `--raw` désactive le nettoyage des données, ajoutez-la si vous avez
-besoin des données LEGI brutes.
+besoin des données LEGI brutes. Elle est obligatoire pour les bases autres que LEGI, car la normalisation n'a pour l'instant été testée que sur LEGI.
 
 `tar2sqlite` permet aussi de maintenir votre base de données à jour, il saute
 automatiquement les archives qu'il a déjà traité. En général la DILA publie une
@@ -65,9 +66,7 @@ exemple avec [cron][cron] :
 
 (`chronic` fait partie des [`moreutils`](http://joeyh.name/code/moreutils/).)
 
-L'option `--base` permet d'utiliser la base JORF ou KALI au lieu de la base LEGI.
-
-## Fonctionnalités
+## Nettoyage des données (pour la base LEGI uniquement)
 
 ### Normalisation des titres et numéros
 
