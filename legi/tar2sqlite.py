@@ -74,6 +74,9 @@ def suppress(base, get_table, db, liste_suppression):
                         OR dst_id = ? AND _reversed
                 """, (text_id, text_id))
                 count(counts, 'delete from liens', db.changes())
+            if table in ('articles'):
+                db.run("DELETE FROM articles_calipsos WHERE article_id = ?", (text_id,))
+                count(counts, 'delete from articles_calipsos', db.changes())
             elif table == 'sections':
                 db.run("""
                     DELETE FROM sommaires
@@ -208,6 +211,7 @@ def process_archive(db, archive_path, process_links=True):
     skipped = 0
     unknown_folders = {}
     liste_suppression = []
+    calipsos = set()
     xml = etree.XMLParser(remove_blank_text=True)
     with libarchive.file_reader(archive_path) as archive:
         for entry in tqdm(archive):
@@ -340,9 +344,11 @@ def process_archive(db, archive_path, process_links=True):
             liens = ()
             sommaires = ()
             tetiers = []
+            articles_calipsos = []
             if tag == 'ARTICLE':
                 assert nature == 'Article'
                 assert table == 'articles'
+                article_id = text_id
                 contexte = root.find('CONTEXTE/TEXTE')
                 assert attr(contexte, 'cid') == text_cid
                 sections = contexte.findall('.//TITRE_TM')
@@ -351,6 +357,12 @@ def process_archive(db, archive_path, process_links=True):
                 meta_article = meta.find('META_SPEC/META_ARTICLE')
                 scrape_tags(attrs, meta_article, META_ARTICLE_TAGS)
                 scrape_tags(attrs, root, ARTICLE_TAGS, unwrap=True)
+                current_calipsos = [innerHTML(c) for c in meta_article.findall('CALIPSOS/CALIPSO')]
+                calipsos |= set(current_calipsos)
+                articles_calipsos += [
+                    {'article_id': article_id, 'calipso_id': c} for c in current_calipsos
+                ]
+
             elif tag == 'SECTION_TA':
                 assert table == 'sections'
                 scrape_tags(attrs, root, SECTION_TA_TAGS)
@@ -528,6 +540,12 @@ def process_archive(db, archive_path, process_links=True):
                             OR dst_id = ? AND _reversed
                     """, (text_id, text_id))
                     count(counts, 'delete from liens', db.changes())
+                if tag in ('ARTICLE'):
+                    db.run("""
+                        DELETE FROM articles_calipsos
+                        WHERE article_id = ?
+                    """, (text_id,))
+                    count(counts, 'delete from articles_calipsos', db.changes())
                 if table == 'textes_versions':
                     db.run("DELETE FROM textes_versions_brutes WHERE id = ?", (text_id,))
                     count(counts, 'delete from textes_versions_brutes', db.changes())
@@ -549,6 +567,13 @@ def process_archive(db, archive_path, process_links=True):
             for tetier in tetiers:
                 db.insert('tetiers', tetier)
             count(counts, 'insert into tetiers', len(tetiers))
+            for article_calipso in articles_calipsos:
+                db.insert('articles_calipsos', article_calipso)
+            count(counts, 'insert into articles_calipsos', len(articles_calipsos))
+
+    for calipso in calipsos:
+        db.insert('calipsos', {'id': calipso}, replace=True)
+    count(counts, 'insert into calipsos', len(calipsos))
 
     print("made", sum(counts.values()), "changes in the database:",
           json.dumps(counts, indent=4, sort_keys=True))
