@@ -4,11 +4,14 @@ from itertools import chain, repeat
 import os
 import os.path
 import re
-from sqlite3 import IntegrityError, ProgrammingError, Row
+from sqlite3 import IntegrityError, Row
 import sre_parse
 import traceback
 from unicodedata import combining, decomposition, normalize
-from peewee import SqliteDatabase, OperationalError
+from peewee import SqliteDatabase, PostgresqlDatabase, OperationalError, ProgrammingError
+from urllib.parse import urlparse
+from playhouse.db_url import connect
+from datetime import date
 
 
 if not hasattr(re, 'Match'):
@@ -37,10 +40,6 @@ def patch_object(obj, attr, value):
             setattr(obj, attr, backup)
 
 
-class DB(SqliteDatabase):
-    pass
-
-
 def dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
@@ -56,15 +55,9 @@ ROW_FACTORIES = {
 }
 
 
-def connect_db(address, row_factory=None, create_schema=True, update_schema=True, pragmas=()):
-    db = DB(address, pragmas=pragmas)
-    db.address = address
-
-    # TODO
-    # if row_factory:
-    #     if not callable(row_factory):
-    #         row_factory = ROW_FACTORIES[row_factory]
-    #     db.row_factory = row_factory
+def connect_db(db_url, create_schema=True, update_schema=True, pragmas=()):
+    db = connect(db_url)
+    db.interpolation_char = '?' if isinstance(db, SqliteDatabase) else "%s"
 
     db.insert = inserter(db)
     db.update = updater(db)
@@ -76,7 +69,7 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
             q = db.execute_sql(*a)
         return iter_results(q)
 
-    db.all = all
+    # db.all(to_dict=True) should be replaced with select().dicts()
 
     def one(*args, **kw):
         to_dict = kw.get('to_dict', False)
@@ -87,19 +80,20 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
             return r
 
     db.one = one
-    db.changes = lambda: one("SELECT changes()")
+    db.changes = lambda: 1
 
     if create_schema:
-        try:
-            db.run("SELECT 1 FROM db_meta LIMIT 1")
-        except OperationalError:
+        if not db.table_exists("db_meta"):
             with open(ROOT + 'sql/schema.sql', 'r') as f:
-                db.cursor().executescript(f.read())
+                if isinstance(db, PostgresqlDatabase):
+                    db.cursor().execute(f.read())
+                elif isinstance(db, SqliteDatabase):
+                    db.cursor().executescript(f.read())
 
     if update_schema:
         r = run_migrations(db)
         if r == '!RECREATE!':
-            return connect_db(address, row_factory=row_factory, create_schema=True)
+            return connect_db(db_url, row_factory=row_factory, create_schema=True)
 
     for pragma in pragmas:
         query = "PRAGMA " + pragma
@@ -110,15 +104,15 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
 
 
 def inserter(conn):
-    def insert(table, attrs, replace=False):
-        or_clause = 'OR REPLACE' if replace else ''
+    def insert(table, attrs):
         keys, values = zip(*attrs.items())
         keys = ','.join(keys)
-        placeholders = ','.join(repeat('?', len(attrs)))
+        placeholders = ','.join(repeat(conn.interpolation_char, len(attrs)))
         try:
             conn.execute_sql("""
-                INSERT {0} INTO {1} ({2}) VALUES ({3})
-            """.format(or_clause, table, keys, placeholders), values)
+                INSERT INTO {0} ({1}) VALUES ({2})
+            """.format(table, keys, placeholders), values)
+            conn.commit()
         except IntegrityError:
             print(table, *attrs.items(), sep='\n    ')
             raise
@@ -129,7 +123,9 @@ def updater(conn):
 
     def dict2sql(d, joiner=', '):
         keys, values = zip(*d.items())
-        placeholders = joiner.join(k+' = ?' for k in keys)
+        placeholders = joiner.join(
+            '%s = %s' % (k, conn.interpolation_char) for k in keys
+        )
         return placeholders, values
 
     def update(table, where, attrs):
@@ -142,6 +138,7 @@ def updater(conn):
                 ),
                 values + where_values
             )
+            conn.commit()
         except IntegrityError:
             print(table, *chain(where.items(), attrs.items()), sep='\n    ')
             raise
@@ -161,7 +158,7 @@ def iter_results(q):
 def run_migrations(db):
     cursor = db.execute_sql("SELECT value FROM db_meta WHERE key = 'schema_version'")
     row = cursor.fetchone()
-    v = row[0] if row is not None else 0
+    v = int(row[0]) if row is not None else 0
     if v == 0:
         db.insert('db_meta', dict(key='schema_version', value=v))
     migrations = open(ROOT + 'sql/migrations.sql').read().split('\n\n-- migration #')
@@ -187,7 +184,7 @@ def run_migrations(db):
             if r.lower() != 'y':
                 raise SystemExit(1)
         db.execute_sql("UPDATE db_meta SET value = ? WHERE key = 'schema_version'", (n,))
-        # db.commit()
+        db.commit()
     return n - v
 
 
@@ -368,3 +365,9 @@ def show_match(m, n=30, wrapper='%s{%s}%s'):
     after = m_string.find(' ', m_end + n)
     after = m_string[m_end:] if after == -1 else m_string[m_end:after+1] + '[…]'
     return wrapper % (before, m_string[m_start:m_end], after)
+
+
+def json_serializer(obj):
+    if isinstance(obj, date):
+        return str(obj)
+    raise TypeError ("Type %s not serializable" % type(obj))

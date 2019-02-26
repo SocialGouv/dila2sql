@@ -1,7 +1,7 @@
 
 CREATE TABLE db_meta
 ( key     text   primary key
-, value   blob
+, value   text
 );
 
 INSERT INTO db_meta (key, value) VALUES ('schema_version', 5);
@@ -10,36 +10,36 @@ CREATE TABLE textes
 ( id            integer    primary key not null
 , nature        text       not null
 , num           text
-, nor           char(12)   unique   -- only used during factorization
+, nor           char(13)   unique   -- only used during factorization
 , titrefull_s   text       unique   -- only used during factorization
 , UNIQUE (nature, num)
 );
 
 CREATE TABLE textes_structs
-( id         char(20)   unique not null
+( id         char(30)   unique not null
 , versions   text
 , dossier    text
-, cid        char(20)   not null
+, cid        char(30)   not null
 , mtime      int        not null
 );
 
 CREATE TABLE textes_versions
-( id                      char(20)   unique not null
+( id                      char(30)   unique not null
 , nature                  text
 , titre                   text
 , titrefull               text
 , titrefull_s             text
 , etat                    text
-, date_debut              day
-, date_fin                day
+, date_debut              date
+, date_fin                date
 , autorite                text
 , ministere               text
 , num                     text
 , num_sequence            int
-, nor                     char(12)
-, date_publi              day
-, date_texte              day
-, derniere_modification   day
+, nor                     char(13)
+, date_publi              date
+, date_texte              date
+, derniere_modification   date
 , origine_publi           text
 , page_deb_publi          int
 , page_fin_publi          int
@@ -50,7 +50,7 @@ CREATE TABLE textes_versions
 , abro                    text
 , rect                    text
 , dossier                 text
-, cid                     char(20)   not null
+, cid                     char(30)   not null
 , mtime                   int        not null
 , texte_id                int        references textes
 );
@@ -59,37 +59,37 @@ CREATE INDEX textes_versions_titrefull_s ON textes_versions (titrefull_s);
 CREATE INDEX textes_versions_texte_id ON textes_versions (texte_id);
 
 CREATE TABLE sections
-( id            char(20)   unique not null
+( id            char(30)   unique not null
 , titre_ta      text
 , commentaire   text
-, parent        char(20)   -- REFERENCES sections(id)
+, parent        char(30)   -- REFERENCES sections(id)
 , dossier       text
-, cid           char(20)   not null
+, cid           char(30)   not null
 , mtime         int        not null
 );
 
 CREATE TABLE articles
-( id             char(20)   unique not null
-, section        char(20)   -- REFERENCES sections(id)
+( id             char(30)   unique not null
+, section        char(30)   -- REFERENCES sections(id)
 , num            text
 , titre          text
 , etat           text
-, date_debut     day
-, date_fin       day
+, date_debut     date
+, date_fin       date
 , type           text
 , nota           text
 , bloc_textuel   text
 , dossier        text
-, cid            char(20)   not null
+, cid            char(30)   not null
 , mtime          int        not null
 );
 
 CREATE TABLE sommaires
-( cid        char(20)
-, parent     char(20)   -- REFERENCES sections OR conteneurs
-, element    char(20)   not null -- REFERENCES textes OR articles OR sections
-, debut      day
-, fin        day
+( cid        char(30)
+, parent     char(30)   -- REFERENCES sections OR conteneurs
+, element    char(30)   not null -- REFERENCES textes OR articles OR sections
+, debut      date
+, fin        date
 , etat       text
 , num        text
 , position   int
@@ -103,9 +103,9 @@ CREATE INDEX sommaires_parent_debut_fin_etat_num_idx ON sommaires (parent, debut
 CREATE INDEX sommaires_source_idx ON sommaires(_source);
 
 CREATE TABLE liens
-( src_id      char(20)   not null
-, dst_cid     char(20)
-, dst_id      char(20)
+( src_id      char(30)   not null
+, dst_cid     char(30)
+, dst_id      char(30)
 , dst_titre   text
 , typelien    text
 , _reversed   bool       -- to support incremental updates
@@ -116,29 +116,29 @@ CREATE INDEX liens_src_idx ON liens (src_id) WHERE NOT _reversed;
 CREATE INDEX liens_dst_idx ON liens (dst_id) WHERE _reversed;
 
 CREATE TABLE duplicate_files
-( id              char(20)   not null
+( id              char(30)   not null
 , sous_dossier    text       not null
-, cid             char(20)
+, cid             char(30)
 , dossier         text
 , mtime           int        not null
 , data            text       not null
-, other_cid       char(20)
+, other_cid       char(30)
 , other_dossier   text
 , other_mtime     int        not null
 , UNIQUE (id, sous_dossier, cid, dossier)
 );
 
 CREATE TABLE textes_versions_brutes
-( id           char(20)   unique not null
+( id           char(30)   unique not null
 , bits         int        not null
 , nature       text
 , titre        text
 , titrefull    text
 , autorite     text
 , num          text
-, date_texte   day
+, date_texte   date
 , dossier      text
-, cid          char(20)   not null
+, cid          char(30)   not null
 , mtime        int        not null
 );
 
@@ -156,12 +156,12 @@ CREATE VIEW textes_versions_brutes_view AS
         ON b.id = a.id AND b.cid = a.cid AND b.dossier = a.dossier AND b.mtime = a.mtime;
 
 CREATE TABLE conteneurs
-( id           char(20)   unique not null
+( id           char(30)   unique not null
 , titre        text
 , etat         text
 , nature       text
 , num          text
-, date_publi   day
+, date_publi   date
 , mtime        int        not null
 );
 
@@ -169,21 +169,21 @@ CREATE INDEX conteneurs_id_idx ON conteneurs (id);
 CREATE INDEX conteneurs_num_idx ON conteneurs (num);
 
 CREATE TABLE tetiers
-( id             char(20)   unique not null
+( id             char(30)   unique not null
 , titre_tm       text       not null
 , niv            int        not null
-, conteneur_id   char(20)   not null
+, conteneur_id   char(30)   not null
 );
 
 CREATE INDEX tetiers_id_idx ON tetiers (id);
 
 CREATE TABLE calipsos
-( id             char(20)   unique not null
+( id             char(30)   unique not null
 );
 CREATE INDEX calipsos_id_idx ON calipsos (id);
 
 CREATE TABLE articles_calipsos
-( article_id   char(20)   not null
-, calipso_id   char(20)   not null
+( article_id   char(30)   not null
+, calipso_id   char(30)   not null
 );
 CREATE UNIQUE INDEX article_calipsos_double_idx ON articles_calipsos (article_id, calipso_id);

@@ -1,5 +1,5 @@
 """
-Extracts LEGI tar archives into an SQLite DB
+Extracts LEGI tar archives into an SQL DB
 """
 
 from argparse import ArgumentParser
@@ -18,7 +18,11 @@ except ImportError:
     tqdm = lambda x: x
 
 from .anomalies import detect_anomalies
-from .utils import connect_db, partition
+from .utils import connect_db, partition, json_serializer
+from .models import db_proxy, DBMeta, Calipso, DuplicateFile, \
+    ArticleCalipso, Article, \
+    TexteVersionBrute, Tetier, \
+    Conteneur, Lien, Sommaire, TABLE_TO_MODEL
 
 
 def count(d, k, c):
@@ -52,74 +56,73 @@ def suppress(base, get_table, db, liste_suppression):
         text_id = parts[-1]
         text_cid = parts[11] if base == 'LEGI' else text_id
         assert len(text_id) == 20
+
         table = get_table(parts)
-        if table == "conteneurs":
-            db.run("""
-                DELETE FROM {0}
-                WHERE id = ?
-            """.format(table), (text_id, ))
+        model = TABLE_TO_MODEL[table]
+        if model == Conteneur:
+            deleted_rows = Conteneur.delete().where(Conteneur.id == text_id).execute()
         else:
-            db.run("""
-                DELETE FROM {0}
-                WHERE dossier = ?
-                AND cid = ?
-                AND id = ?
-            """.format(table), (parts[3], text_cid, text_id))
-        changes = db.changes()
-        if changes:
-            count(counts, 'delete from ' + table, changes)
+            deleted_rows = model.delete().where(
+                (model.dossier == parts[3]) &
+                (model.cid == text_cid) &
+                (model.id == text_id)
+            ).execute()
+
+        if deleted_rows:
+            count(counts, 'delete from ' + table, deleted_rows)
             # Also delete derivative data
             if table in ('articles', 'textes_versions'):
-                db.run("""
-                    DELETE FROM liens
-                     WHERE src_id = ? AND NOT _reversed
-                        OR dst_id = ? AND _reversed
-                """, (text_id, text_id))
-                count(counts, 'delete from liens', db.changes())
+                deleted_subrows = Lien.delete().where(
+                    ((Lien.src_id == text_id) & (~ Lien._reversed)) |
+                    ((Lien.dst_id == text_id) & (Lien._reversed))
+                ).execute()
+                count(counts, 'delete from liens', deleted_subrows)
             if table in ('articles'):
-                db.run("DELETE FROM articles_calipsos WHERE article_id = ?", (text_id,))
-                count(counts, 'delete from articles_calipsos', db.changes())
+                deleted_subrows = ArticleCalipso.delete() \
+                    .where(ArticleCalipso.article_id == text_id) \
+                    .execute()
+                count(counts, 'delete from articles_calipsos', deleted_subrows)
             elif table == 'sections':
-                db.run("""
-                    DELETE FROM sommaires
-                     WHERE parent = ?
-                       AND _source = 'section_ta_liens'
-                """, (text_id,))
-                count(counts, 'delete from sommaires', db.changes())
+                deleted_subrows = Sommaire.delete().where(
+                    (Sommaire.parent == text_id) &
+                    (Sommaire._source == 'section_ta_liens')
+                ).execute()
+                count(counts, 'delete from sommaires', deleted_subrows)
             elif table == 'textes_structs':
-                db.run("""
-                    DELETE FROM sommaires
-                     WHERE parent = ?
-                       AND _source = 'struct/' || ?
-                """, (text_id, text_id))
-                count(counts, 'delete from sommaires', db.changes())
+                deleted_subrows = Sommaire.delete().where(
+                    (Sommaire.parent == text_id) &
+                    (Sommaire._source == "struct/%s" % text_id)
+                ).execute()
+                count(counts, 'delete from sommaires', deleted_subrows)
             elif table == "conteneurs":
-                db.run("""
-                    DELETE FROM sommaires
-                    WHERE _source = ?
-                """, (text_id, ))
+                deleted_subrows = Sommaire.delete() \
+                    .where(Sommaire._source == text_id) \
+                    .execute()
+                count(counts, 'delete from sommaires', deleted_subrows)
             # And delete the associated row in textes_versions_brutes if it exists
             if table == 'textes_versions':
-                db.run("DELETE FROM textes_versions_brutes WHERE id = ?", (text_id,))
-                count(counts, 'delete from textes_versions_brutes', db.changes())
+                deleted_subrows = TexteVersionBrute.delete() \
+                    .where(TexteVersionBrute.id == text_id) \
+                    .execute()
+                count(counts, 'delete from textes_versions_brutes', deleted_subrows)
             # If the file had an older duplicate that hasn't been deleted then
             # we have to fall back to that, otherwise we'd be missing data
-            older_file = db.one("""
-                SELECT *
-                  FROM duplicate_files
-                 WHERE id = ?
-              ORDER BY mtime DESC
-                 LIMIT 1
-            """, (text_id,), to_dict=True)
+            duplicate_files = DuplicateFile.select() \
+                .where(DuplicateFile.id == 'KALIARTI000026951576a') \
+                .order_by(DuplicateFile.mtime.desc()) \
+                .limit(1) \
+                .dicts()
+            older_file = duplicate_files[0] if len(duplicate_files) > 0 else None
+
             if older_file:
-                db.run("""
-                    DELETE FROM duplicate_files
-                     WHERE dossier = ?
-                       AND cid = ?
-                       AND id = ?
-                """, (older_file['dossier'], older_file['cid'], older_file['id']))
-                count(counts, 'delete from duplicate_files', db.changes())
+                deleted_duplicate_files = DuplicateFile.delete().where(
+                    (DuplicateFile.dossier == older_file['dossier']) &
+                    (DuplicateFile.cid == older_file['cid']) &
+                    (DuplicateFile.id == older_file['id'])
+                ).execute()
+                count(counts, 'delete from duplicate_files', deleted_duplicate_files)
                 for table, rows in json.loads(older_file['data']).items():
+                    model = TABLE_TO_MODEL[table]
                     if isinstance(rows, dict):
                         rows['id'] = older_file['id']
                         rows['cid'] = older_file['cid']
@@ -127,17 +130,16 @@ def suppress(base, get_table, db, liste_suppression):
                         rows['mtime'] = older_file['mtime']
                         rows = (rows,)
                     for row in rows:
-                        db.insert(table, row)
+                        model.create(**row)
                     count(counts, 'insert into ' + table, len(rows))
         else:
             # Remove the file from the duplicates table if it was in there
-            db.run("""
-                DELETE FROM duplicate_files
-                 WHERE dossier = ?
-                   AND cid = ?
-                   AND id = ?
-            """, (parts[3], text_cid, text_id))
-            count(counts, 'delete from duplicate_files', db.changes())
+            deleted_duplicate_files = DuplicateFile.delete().where(
+                (DuplicateFile.dossier == parts[3]) &
+                (DuplicateFile.cid == text_cid) &
+                (DuplicateFile.id == text_id)
+            ).execute()
+            count(counts, 'delete from duplicate_files', deleted_duplicate_files)
     total = sum(counts.values())
     print("made", total, "changes in the database based on liste_suppression_"+base.lower()+".dat:",
           json.dumps(counts, indent=4, sort_keys=True))
@@ -185,8 +187,6 @@ def process_archive(db, archive_path, process_links=True):
 
     # Define some shortcuts
     attr = etree._Element.get
-    insert = db.insert
-    update = db.update
 
     def get_table(parts):
         if parts[-1][4:8] not in TABLES_MAP:
@@ -208,7 +208,7 @@ def process_archive(db, archive_path, process_links=True):
         except KeyError:
             counts[k] = 1
 
-    base = db.one("SELECT value FROM db_meta WHERE key = 'base'") or 'LEGI'
+    base = DBMeta.get(DBMeta.key == 'base').value or 'LEGI'
 
     skipped = 0
     unknown_folders = {}
@@ -276,14 +276,14 @@ def process_archive(db, archive_path, process_links=True):
                 prev_row = db.one("""
                     SELECT mtime, null AS dossier, null AS cid
                     FROM {0}
-                    WHERE id = ?
-                """.format(table), (text_id,))
+                    WHERE id = {1}
+                """.format(table, db.interpolation_char), (text_id,))
             else:
                 prev_row = db.one("""
                     SELECT mtime, dossier, cid
                     FROM {0}
-                    WHERE id = ?
-                """.format(table), (text_id,))
+                    WHERE id = {1}
+                """.format(table, db.interpolation_char), (text_id,))
 
             if prev_row:
                 prev_mtime, prev_dossier, prev_cid = prev_row
@@ -294,40 +294,54 @@ def process_archive(db, archive_path, process_links=True):
                         prev_row_dict = db.one("""
                             SELECT *
                               FROM {0}
-                             WHERE id = ?
-                        """.format(table), (text_id,), to_dict=True)
+                             WHERE id = {1}
+                        """.format(table, db.interpolation_char), (text_id,), to_dict=True)
                         data = {table: prev_row_dict}
-                        data['liens'] = list(db.all("""
-                            SELECT *
-                              FROM liens
-                             WHERE src_id = ? AND NOT _reversed
-                                OR dst_id = ? AND _reversed
-                        """, (text_id, text_id), to_dict=True))
+                        data['liens'] = list(
+                            Lien.select().where(
+                                ((Lien.src_id == text_id) & (~ Lien._reversed)) |
+                                ((Lien.dst_id == text_id) & (Lien._reversed))
+                            ).dicts()
+                        )
                         if table == 'sections':
-                            data['sommaires'] = list(db.all("""
-                                SELECT *
-                                  FROM sommaires
-                                 WHERE parent = ?
-                                   AND _source = 'section_ta_liens'
-                            """, (text_id,), to_dict=True))
+                            data['sommaires'] = list(
+                                Sommaire.select().where(
+                                    (Sommaire.parent == text_id) &
+                                    (Sommaire._source == 'section_ta_liens')
+                                ).dicts()
+                            )
                         elif table == 'textes_structs':
-                            data['sommaires'] = list(db.all("""
-                                SELECT *
-                                  FROM sommaires
-                                 WHERE _source = ?
-                            """, ("struct/%s" % text_id,), to_dict=True))
+                            data['sommaires'] = list(
+                                Sommaire.select()
+                                    .where(Sommaire._source == "struct/%s" % text_id)
+                                    .dicts()
+                            )
                         data = {k: v for k, v in data.items() if v}
-                        insert('duplicate_files', {
-                            'id': text_id,
-                            'sous_dossier': SOUS_DOSSIER_MAP[table],
-                            'cid': prev_cid,
-                            'dossier': prev_dossier,
-                            'mtime': prev_mtime,
-                            'data': json.dumps(data),
-                            'other_cid': text_cid,
-                            'other_dossier': dossier,
-                            'other_mtime': mtime,
-                        }, replace=True)
+                        DuplicateFile.insert(
+                            id=text_id,
+                            sous_dossier=SOUS_DOSSIER_MAP[table],
+                            cid=prev_cid,
+                            dossier=prev_dossier,
+                            mtime=prev_mtime,
+                            data=json.dumps(data, default=json_serializer),
+                            other_cid=text_cid,
+                            other_dossier=dossier,
+                            other_mtime=mtime,
+                        ).on_conflict(
+                            conflict_target=[
+                                DuplicateFile.id,
+                                DuplicateFile.sous_dossier,
+                                DuplicateFile.cid,
+                                DuplicateFile.dossier
+                            ],
+                            preserve=[
+                                DuplicateFile.mtime,
+                                DuplicateFile.data,
+                                DuplicateFile.other_cid,
+                                DuplicateFile.other_dossier,
+                                DuplicateFile.other_mtime,
+                            ]
+                        ).execute()
                         count_one('upsert into duplicate_files')
                 elif prev_mtime == mtime:
                     skipped += 1
@@ -490,17 +504,32 @@ def process_archive(db, archive_path, process_links=True):
                     data['liens'] = liens
                 if sommaires:
                     data['sommaires'] = sommaires
-                insert('duplicate_files', {
-                    'id': text_id,
-                    'sous_dossier': SOUS_DOSSIER_MAP[table],
-                    'cid': text_cid,
-                    'dossier': dossier,
-                    'mtime': mtime,
-                    'data': json.dumps(data),
-                    'other_cid': prev_cid,
-                    'other_dossier': prev_dossier,
-                    'other_mtime': prev_mtime,
-                }, replace=True)
+
+                DuplicateFile.insert(
+                    id=text_id,
+                    sous_dossier=SOUS_DOSSIER_MAP[table],
+                    cid=text_cid,
+                    dossier=dossier,
+                    mtime=mtime,
+                    data=json.dumps(data, default=json_serializer),
+                    other_cid=prev_cid,
+                    other_dossier=prev_dossier,
+                    other_mtime=prev_mtime,
+                ).on_conflict(
+                    conflict_target=[
+                        DuplicateFile.id,
+                        DuplicateFile.sous_dossier,
+                        DuplicateFile.cid,
+                        DuplicateFile.dossier
+                    ],
+                    preserve=[
+                        DuplicateFile.mtime,
+                        DuplicateFile.data,
+                        DuplicateFile.other_cid,
+                        DuplicateFile.other_dossier,
+                        DuplicateFile.other_mtime,
+                    ]
+                ).execute()
                 count_one('upsert into duplicate_files')
                 continue
 
@@ -512,52 +541,48 @@ def process_archive(db, archive_path, process_links=True):
             if prev_row:
                 # Delete the associated rows
                 if tag == 'SECTION_TA':
-                    db.run("""
-                        DELETE FROM sommaires
-                         WHERE parent = ?
-                           AND _source = 'section_ta_liens'
-                    """, (section_id,))
-                    count(counts, 'delete from sommaires', db.changes())
+                    deleted_linked_rows = Sommaire.delete().where(
+                        (Sommaire.parent == section_id) &
+                        (Sommaire._source == 'section_ta_liens')
+                    ).execute()
+                    count(counts, 'delete from sommaires', deleted_linked_rows)
                 elif tag in ['TEXTELR', 'TEXTEKALI']:
-                    db.run("""
-                        DELETE FROM sommaires
-                         WHERE _source = ?
-                    """, ('struct/' + text_id, ))
-                    count(counts, 'delete from sommaires', db.changes())
+                    deleted_linked_rows = Sommaire.delete() \
+                        .where(Sommaire._source == 'struct/%s' % text_id) \
+                        .execute()
+                    count(counts, 'delete from sommaires', deleted_linked_rows)
                 elif tag == 'IDCC':
-                    db.run("""
-                        DELETE FROM sommaires
-                         WHERE _source = ?
-                    """, (text_id, ))
-                    count(counts, 'delete from sommaires', db.changes())
-                    db.run("""
-                        DELETE FROM tetiers
-                         WHERE conteneur_id = ?
-                    """, (text_id, ))
-                    count(counts, 'delete from tetiers', db.changes())
+                    deleted_linked_rows = Sommaire.delete() \
+                        .where(Sommaire._source == text_id) \
+                        .execute()
+                    count(counts, 'delete from sommaires', deleted_linked_rows)
+                    deleted_linked_rows = Tetier.delete() \
+                        .where(Tetier.conteneur_id == text_id) \
+                        .execute()
+                    count(counts, 'delete from tetiers', deleted_linked_rows)
                 if tag in ('ARTICLE', 'TEXTE_VERSION'):
-                    db.run("""
-                        DELETE FROM liens
-                         WHERE src_id = ? AND NOT _reversed
-                            OR dst_id = ? AND _reversed
-                    """, (text_id, text_id))
-                    count(counts, 'delete from liens', db.changes())
+                    deleted_linked_rows = Lien.delete().where(
+                        ((Lien.src_id == text_id) & (~ Lien._reversed)) |
+                        ((Lien.dst_id == text_id) & (Lien._reversed))
+                    ).execute()
+                    count(counts, 'delete from liens', deleted_linked_rows)
                 if tag in ('ARTICLE'):
-                    db.run("""
-                        DELETE FROM articles_calipsos
-                        WHERE article_id = ?
-                    """, (text_id,))
-                    count(counts, 'delete from articles_calipsos', db.changes())
+                    deleted_linked_rows = ArticleCalipso.delete() \
+                        .where(ArticleCalipso.article_id == text_id) \
+                        .execute()
+                    count(counts, 'delete from articles_calipsos', deleted_linked_rows)
                 if table == 'textes_versions':
-                    db.run("DELETE FROM textes_versions_brutes WHERE id = ?", (text_id,))
-                    count(counts, 'delete from textes_versions_brutes', db.changes())
+                    deleted_linked_rows = TexteVersionBrute.delete() \
+                        .where(TexteVersionBrute.id == text_id) \
+                        .execute()
+                    count(counts, 'delete from textes_versions_brutes', deleted_linked_rows)
                 # Update the row
                 count_one('update in '+table)
-                update(table, dict(id=text_id), attrs)
+                db.update(table, dict(id=text_id), attrs)
             else:
                 count_one('insert into '+table)
                 attrs['id'] = text_id
-                insert(table, attrs)
+                db.insert(table, attrs)
 
             # Insert the associated rows
             for lien in liens:
@@ -574,7 +599,7 @@ def process_archive(db, archive_path, process_links=True):
             count(counts, 'insert into articles_calipsos', len(articles_calipsos))
 
     for calipso in calipsos:
-        db.insert('calipsos', {'id': calipso}, replace=True)
+        Calipso.insert(id=calipso).on_conflict_ignore().execute()
     count(counts, 'insert into calipsos', len(calipsos))
 
     print("made", sum(counts.values()), "changes in the database:",
@@ -610,6 +635,8 @@ def main():
         os.mkdir(args.anomalies_dir)
 
     db = connect_db(args.db, pragmas=args.pragma)
+    db_proxy.initialize(db)
+
     base = db.one("SELECT value FROM db_meta WHERE key = 'base'")
     last_update = db.one("SELECT value FROM db_meta WHERE key = 'last_update'")
     if not base:
@@ -636,7 +663,9 @@ def main():
             print("!> Can't honor --raw option, the data has already been modified previously.")
             raise SystemExit(1)
     if db_meta_raw != args.raw:
-        db.insert('db_meta', dict(key='raw', value=args.raw), replace=True)
+        DBMeta.insert(key='raw', value=args.raw) \
+            .on_conflict(conflict_target=[DBMeta.key], preserve=[DBMeta.value]) \
+            .execute()
 
     # Handle the --skip-links option
     has_links = bool(db.one("SELECT 1 FROM liens LIMIT 1"))
@@ -674,10 +703,9 @@ def main():
         print("> Processing %s..." % archive_name)
         with db:
             process_archive(db, args.directory + '/' + archive_name, not args.skip_links)
-            if last_update:
-                db.run("UPDATE db_meta SET value = ? WHERE key = 'last_update'", (archive_date,))
-            else:
-                db.run("INSERT INTO db_meta VALUES ('last_update', ?)", (archive_date,))
+            DBMeta.insert(key='last_update', value=archive_date) \
+                .on_conflict(conflict_target=[DBMeta.key], preserve=[DBMeta.value]) \
+                .execute()
         last_update = archive_date
         print('last_update is now set to', last_update)
 

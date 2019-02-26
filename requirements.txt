@@ -5,3 +5,4 @@ aiohttp
 aiofiles
 backoff
 peewee
+psycopg2-binary
