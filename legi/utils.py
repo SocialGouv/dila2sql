@@ -4,11 +4,11 @@ from itertools import chain, repeat
 import os
 import os.path
 import re
-from sqlite3 import IntegrityError, OperationalError, ProgrammingError, Row
+from sqlite3 import IntegrityError, ProgrammingError, Row
 import sre_parse
 import traceback
 from unicodedata import combining, decomposition, normalize
-from peewee import SqliteDatabase
+from peewee import SqliteDatabase, OperationalError
 
 
 if not hasattr(re, 'Match'):
@@ -68,12 +68,12 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
 
     db.insert = inserter(db)
     db.update = updater(db)
-    db.run = db.execute
+    db.run = db.execute_sql
 
     def all(*a, **kw):
         to_dict = kw.get('to_dict', False)
         with patch_object(db, 'row_factory', dict_factory if to_dict else IGNORE):
-            q = db.execute(*a)
+            q = db.execute_sql(*a)
         return iter_results(q)
 
     db.all = all
@@ -81,7 +81,7 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
     def one(*args, **kw):
         to_dict = kw.get('to_dict', False)
         with patch_object(db, 'row_factory', dict_factory if to_dict else IGNORE):
-            r = db.execute(*args).fetchone()
+            r = db.execute_sql(*args).fetchone()
             if r and len(r) == 1 and not to_dict:
                 r = r[0]
             return r
@@ -94,7 +94,7 @@ def connect_db(address, row_factory=None, create_schema=True, update_schema=True
             db.run("SELECT 1 FROM db_meta LIMIT 1")
         except OperationalError:
             with open(ROOT + 'sql/schema.sql', 'r') as f:
-                db.executescript(f.read())
+                db.cursor().executescript(f.read())
 
     if update_schema:
         r = run_migrations(db)
