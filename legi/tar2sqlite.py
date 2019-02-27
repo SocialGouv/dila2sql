@@ -274,26 +274,28 @@ def process_archive(db, archive_path, process_links=True):
 
             if table == 'conteneurs':
                 prev_rows = Conteneur \
-                    .select(Conteneur.mtime) \
+                    .select() \
                     .where(Conteneur.id == text_id) \
                     .dicts().limit(1)
-                prev_row = prev_rows[0] if len(prev_rows) > 0 else {}
-                prev_row["dossier"] = None
-                prev_row["cid"] = None
+                prev_row = prev_rows[0] if len(prev_rows) > 0 else None
+                if prev_row:
+                    prev_row["dossier"] = None
+                    prev_row["cid"] = None
             else:
                 model = TABLE_TO_MODEL[table]
                 prev_rows = model \
                     .select(model.mtime, model.dossier, model.cid) \
                     .where(model.id == text_id) \
                     .dicts().limit(1)
-                prev_row = prev_rows[0] if len(prev_rows) > 0 else {}
+                prev_row = prev_rows[0] if len(prev_rows) > 0 else None
             if prev_row:
                 if prev_row["dossier"] != dossier or prev_row["cid"] != text_cid:
                     if prev_row["mtime"] >= mtime:
                         duplicate = True
                     else:
-                        model = TABLE_TO_MODEL[table]
-                        prev_row = model.select().where(model.id == text_id).dicts().get()
+                        if table != 'conteneurs':
+                            model = TABLE_TO_MODEL[table]
+                            prev_row = model.select().where(model.id == text_id).dicts().get()
                         data = {table: prev_row}
                         data['liens'] = list(
                             Lien.select().where(
@@ -511,8 +513,8 @@ def process_archive(db, archive_path, process_links=True):
                     mtime=mtime,
                     data=json.dumps(data, default=json_serializer),
                     other_cid=prev_row["cid"],
-                    other_dossier=prev_dossier,
-                    other_mtime=prev_mtime,
+                    other_dossier=prev_row["dossier"],
+                    other_mtime=prev_row["mtime"],
                 ).on_conflict(
                     conflict_target=[
                         DuplicateFile.id,
@@ -580,7 +582,8 @@ def process_archive(db, archive_path, process_links=True):
             else:
                 count_one('insert into '+table)
                 attrs['id'] = text_id
-                db.insert(table, attrs)
+                model = TABLE_TO_MODEL[table]
+                model.create(**attrs)
 
             # Insert the associated rows
             for lien in liens:

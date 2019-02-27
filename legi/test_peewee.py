@@ -20,6 +20,13 @@ db.commit()
 # res4 = db.commit()
 # print("res4 is %s" % res4)
 
-res = Conteneur.select("null as dossier").where(Conteneur.id == 'KALICONT000030400200').dicts().get()
+res = Conteneur.get(Conteneur.id == 'KALICONT000030400200').id
 
-print(res)
+print("'%s'" % res)
+
+import psycopg2
+conn = psycopg2.connect("dbname=kali user=legipy password=dilamite")
+cur = conn.cursor()
+cur.execute("SELECT id FROM conteneurs WHERE id='KALICONT000030400200'")
+res = cur.fetchone()
+print("'%s'" % res)
