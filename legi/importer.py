@@ -7,6 +7,7 @@ from fnmatch import fnmatch
 import json
 import os
 import re
+from collections import defaultdict
 
 import libarchive
 from lxml import etree
@@ -25,13 +26,59 @@ from .models import db_proxy, DBMeta, Calipso, DuplicateFile, \
     Conteneur, Lien, Sommaire, TABLE_TO_MODEL
 
 
-def count(d, k, c):
-    if c == 0:
-        return
-    try:
-        d[k] += c
-    except KeyError:
-        d[k] = c
+TABLES_MAP = {'ARTI': 'articles', 'SCTA': 'sections', 'TEXT': 'textes_', 'CONT': 'conteneurs'}
+ARTICLE_TAGS = set('NOTA BLOC_TEXTUEL'.split())
+SECTION_TA_TAGS = set('TITRE_TA COMMENTAIRE'.split())
+TEXTELR_TAGS = set('VERSIONS'.split())
+TEXTE_VERSION_TAGS = set('VISAS SIGNATAIRES TP NOTA ABRO RECT'.split())
+META_ARTICLE_TAGS = set('NUM ETAT DATE_DEBUT DATE_FIN TYPE TITRE'.split())
+META_CHRONICLE_TAGS = set("""
+    NUM NUM_SEQUENCE NOR DATE_PUBLI DATE_TEXTE DERNIERE_MODIFICATION
+    ORIGINE_PUBLI PAGE_DEB_PUBLI PAGE_FIN_PUBLI
+""".split())
+META_CONTENEUR_TAGS = set('TITRE ETAT NUM DATE_PUBLI'.split())
+META_VERSION_TAGS = set(
+    'TITRE TITREFULL ETAT DATE_DEBUT DATE_FIN AUTORITE MINISTERE'.split()
+)
+SOUS_DOSSIER_MAP = {
+    'articles': 'article',
+    'sections': 'section_ta',
+    'textes_structs': 'texte/struct',
+    'textes_versions': 'texte/version',
+    'conteneurs': 'conteneur'
+}
+TYPELIEN_MAP = {
+    "ABROGATION": "ABROGE",
+    "ANNULATION": "ANNULE",
+    "CODIFICATION": "CODIFIE",
+    "CONCORDANCE": "CONCORDE",
+    "CREATION": "CREE",
+    "DEPLACE": "DEPLACEMENT",
+    "DISJOINT": "DISJONCTION",
+    "MODIFICATION": "MODIFIE",
+    "PEREMPTION": "PERIME",
+    "RATIFICATION": "RATIFIE",
+    "TRANSFERE": "TRANSFERT",
+}
+TYPELIEN_MAP.update([(v, k) for k, v in TYPELIEN_MAP.items()])
+TM_TAGS = ['TITRE_TM']
+
+
+attr = etree._Element.get
+
+
+def get_table(parts):
+    if parts[-1][4:8] not in TABLES_MAP:
+        return None
+    table = TABLES_MAP[parts[-1][4:8]]
+    if table == 'textes_':
+        if parts[0] == 'legi':
+            table += parts[13] + 's'
+        elif parts[0] == 'jorf':
+            table += parts[3] + 's'
+        elif parts[0] == 'kali':
+            table += parts[3] + 's'
+    return table
 
 
 def innerHTML(e):
@@ -46,8 +93,8 @@ def scrape_tags(attrs, root, wanted_tags, unwrap=False):
     )
 
 
-def suppress(base, get_table, db, liste_suppression):
-    counts = {}
+def suppress(base, db, liste_suppression):
+    counts = defaultdict(lambda: 0)
     for path in liste_suppression:
         parts = path.split('/')
         if parts[0] != base.lower():
@@ -69,42 +116,42 @@ def suppress(base, get_table, db, liste_suppression):
             ).execute()
 
         if deleted_rows:
-            count(counts, 'delete from ' + table, deleted_rows)
+            counts['delete from ' + table] += deleted_rows
             # Also delete derivative data
             if table in ('articles', 'textes_versions'):
                 deleted_subrows = Lien.delete().where(
                     ((Lien.src_id == text_id) & (~ Lien._reversed)) |
                     ((Lien.dst_id == text_id) & (Lien._reversed))
                 ).execute()
-                count(counts, 'delete from liens', deleted_subrows)
+                counts['delete from liens'] += deleted_subrows
             if table in ('articles'):
                 deleted_subrows = ArticleCalipso.delete() \
                     .where(ArticleCalipso.article_id == text_id) \
                     .execute()
-                count(counts, 'delete from articles_calipsos', deleted_subrows)
+                counts['delete from articles_calipsos'] += deleted_subrows
             elif table == 'sections':
                 deleted_subrows = Sommaire.delete().where(
                     (Sommaire.parent == text_id) &
                     (Sommaire._source == 'section_ta_liens')
                 ).execute()
-                count(counts, 'delete from sommaires', deleted_subrows)
+                counts['delete from sommaires'] += deleted_subrows
             elif table == 'textes_structs':
                 deleted_subrows = Sommaire.delete().where(
                     (Sommaire.parent == text_id) &
                     (Sommaire._source == "struct/%s" % text_id)
                 ).execute()
-                count(counts, 'delete from sommaires', deleted_subrows)
+                counts['delete from sommaires'] += deleted_subrows
             elif table == "conteneurs":
                 deleted_subrows = Sommaire.delete() \
                     .where(Sommaire._source == text_id) \
                     .execute()
-                count(counts, 'delete from sommaires', deleted_subrows)
+                counts['delete from sommaires'] += 1
             # And delete the associated row in textes_versions_brutes if it exists
             if table == 'textes_versions':
                 deleted_subrows = TexteVersionBrute.delete() \
                     .where(TexteVersionBrute.id == text_id) \
                     .execute()
-                count(counts, 'delete from textes_versions_brutes', deleted_subrows)
+                counts['delete from textes_versions_brutes'] += deleted_subrows
             # If the file had an older duplicate that hasn't been deleted then
             # we have to fall back to that, otherwise we'd be missing data
             duplicate_files = DuplicateFile.select() \
@@ -120,7 +167,7 @@ def suppress(base, get_table, db, liste_suppression):
                     (DuplicateFile.cid == older_file['cid']) &
                     (DuplicateFile.id == older_file['id'])
                 ).execute()
-                count(counts, 'delete from duplicate_files', deleted_duplicate_files)
+                counts['delete from duplicate_files'] += deleted_duplicate_files
                 for table, rows in json.loads(older_file['data']).items():
                     model = TABLE_TO_MODEL[table]
                     if isinstance(rows, dict):
@@ -131,7 +178,7 @@ def suppress(base, get_table, db, liste_suppression):
                         rows = (rows,)
                     for row in rows:
                         model.create(**row)
-                    count(counts, 'insert into ' + table, len(rows))
+                    counts['insert into ' + table] += len(rows)
         else:
             # Remove the file from the duplicates table if it was in there
             deleted_duplicate_files = DuplicateFile.delete().where(
@@ -139,382 +186,119 @@ def suppress(base, get_table, db, liste_suppression):
                 (DuplicateFile.cid == text_cid) &
                 (DuplicateFile.id == text_id)
             ).execute()
-            count(counts, 'delete from duplicate_files', deleted_duplicate_files)
+            counts['delete from duplicate_files'] += deleted_duplicate_files
     total = sum(counts.values())
     print("made", total, "changes in the database based on liste_suppression_"+base.lower()+".dat:",
           json.dumps(counts, indent=4, sort_keys=True))
 
+def process_file(
+    xml, entry, base, unkown_folders, counts,
+    liste_suppression, calipsos, process_links, skipped
+):
+    path = entry.pathname
+    if path[-1] == '/':
+        return
+    parts = path.split('/')
+    if parts[-1] == 'liste_suppression_'+base.lower()+'.dat':
+        liste_suppression += b''.join(entry.get_blocks()).decode('ascii').split()
+        return
+    if parts[1] == base.lower():
+        path = path[len(parts[0])+1:]
+        parts = parts[1:]
+    if parts[0] not in ['legi', 'jorf', 'kali'] or \
+        (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or \
+        (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or \
+        (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur']):
+        # https://github.com/Legilibre/legi.py/issues/23
+        unknown_folders[parts[2]] += 1
+        return
+    dossier = parts[3] if base == 'LEGI' else None
+    text_cid = parts[11] if base == 'LEGI' else None
+    text_id = parts[-1][:-4]
+    mtime = entry.mtime
 
-def process_archive(db, archive_path, process_links=True):
+    # Read the file
+    xml.feed(b''.join(entry.get_blocks()))
+    root = xml.close()
+    tag = root.tag
+    meta = root.find('META')
 
-    # Define some constants
-    ARTICLE_TAGS = set('NOTA BLOC_TEXTUEL'.split())
-    SECTION_TA_TAGS = set('TITRE_TA COMMENTAIRE'.split())
-    TEXTELR_TAGS = set('VERSIONS'.split())
-    TEXTE_VERSION_TAGS = set('VISAS SIGNATAIRES TP NOTA ABRO RECT'.split())
-    META_ARTICLE_TAGS = set('NUM ETAT DATE_DEBUT DATE_FIN TYPE TITRE'.split())
-    META_CHRONICLE_TAGS = set("""
-        NUM NUM_SEQUENCE NOR DATE_PUBLI DATE_TEXTE DERNIERE_MODIFICATION
-        ORIGINE_PUBLI PAGE_DEB_PUBLI PAGE_FIN_PUBLI
-    """.split())
-    META_CONTENEUR_TAGS = set('TITRE ETAT NUM DATE_PUBLI'.split())
-    META_VERSION_TAGS = set(
-        'TITRE TITREFULL ETAT DATE_DEBUT DATE_FIN AUTORITE MINISTERE'.split()
-    )
-    SOUS_DOSSIER_MAP = {
-        'articles': 'article',
-        'sections': 'section_ta',
-        'textes_structs': 'texte/struct',
-        'textes_versions': 'texte/version',
-        'conteneurs': 'conteneur'
-    }
-    TABLES_MAP = {'ARTI': 'articles', 'SCTA': 'sections', 'TEXT': 'textes_', 'CONT': 'conteneurs'}
-    TYPELIEN_MAP = {
-        "ABROGATION": "ABROGE",
-        "ANNULATION": "ANNULE",
-        "CODIFICATION": "CODIFIE",
-        "CONCORDANCE": "CONCORDE",
-        "CREATION": "CREE",
-        "DEPLACE": "DEPLACEMENT",
-        "DISJOINT": "DISJONCTION",
-        "MODIFICATION": "MODIFIE",
-        "PEREMPTION": "PERIME",
-        "RATIFICATION": "RATIFIE",
-        "TRANSFERE": "TRANSFERT",
-    }
-    TYPELIEN_MAP.update([(v, k) for k, v in TYPELIEN_MAP.items()])
-    TM_TAGS = ['TITRE_TM']
+    # Obtain the CID when database is not LEGI
+    if base != 'LEGI':
+        if tag in ['ARTICLE', 'SECTION_TA']:
+            contexte = root.find('CONTEXTE/TEXTE')
+            text_cid = attr(contexte, 'cid')
+        elif tag in ['TEXTELR', 'TEXTE_VERSION', 'TEXTEKALI']:
+            meta_spec = meta.find('META_SPEC')
+            meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
+            text_cid = meta_chronicle.find('CID').text
+        elif tag in ["IDCC"]:
+            text_cid = None
+        else:
+            raise Exception('unexpected tag: '+tag)
 
-    # Define some shortcuts
-    attr = etree._Element.get
+    # Skip the file if it hasn't changed, store it if it's a duplicate
+    duplicate = False
+    table = get_table(parts)
+    if table is None:
+        unknown_folders[text_id] += 1
+        return
 
-    def get_table(parts):
-        if parts[-1][4:8] not in TABLES_MAP:
-            return None
-        table = TABLES_MAP[parts[-1][4:8]]
-        if table == 'textes_':
-            if parts[0] == 'legi':
-                table += parts[13] + 's'
-            elif parts[0] == 'jorf':
-                table += parts[3] + 's'
-            elif parts[0] == 'kali':
-                table += parts[3] + 's'
-        return table
-
-    counts = {}
-    def count_one(k):
-        try:
-            counts[k] += 1
-        except KeyError:
-            counts[k] = 1
-
-    base = DBMeta.get(DBMeta.key == 'base').value or 'LEGI'
-
-    skipped = 0
-    unknown_folders = {}
-    liste_suppression = []
-    calipsos = set()
-    xml = etree.XMLParser(remove_blank_text=True)
-    with libarchive.file_reader(archive_path) as archive:
-        for entry in tqdm(archive):
-            path = entry.pathname
-            if path[-1] == '/':
-                continue
-            parts = path.split('/')
-            if parts[-1] == 'liste_suppression_'+base.lower()+'.dat':
-                liste_suppression += b''.join(entry.get_blocks()).decode('ascii').split()
-                continue
-            if parts[1] == base.lower():
-                path = path[len(parts[0])+1:]
-                parts = parts[1:]
-            if parts[0] not in ['legi', 'jorf', 'kali'] or \
-               (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or \
-               (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or \
-               (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur']):
-                # https://github.com/Legilibre/legi.py/issues/23
-                try:
-                    unknown_folders[parts[2]] += 1
-                except KeyError:
-                    unknown_folders[parts[2]] = 1
-                continue
-            dossier = parts[3] if base == 'LEGI' else None
-            text_cid = parts[11] if base == 'LEGI' else None
-            text_id = parts[-1][:-4]
-            mtime = entry.mtime
-
-            # Read the file
-            xml.feed(b''.join(entry.get_blocks()))
-            root = xml.close()
-            tag = root.tag
-            meta = root.find('META')
-
-            # Obtain the CID when database is not LEGI
-            if base != 'LEGI':
-                if tag in ['ARTICLE', 'SECTION_TA']:
-                    contexte = root.find('CONTEXTE/TEXTE')
-                    text_cid = attr(contexte, 'cid')
-                elif tag in ['TEXTELR', 'TEXTE_VERSION', 'TEXTEKALI']:
-                    meta_spec = meta.find('META_SPEC')
-                    meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
-                    text_cid = meta_chronicle.find('CID').text
-                elif tag in ["IDCC"]:
-                    text_cid = None
-                else:
-                    raise Exception('unexpected tag: '+tag)
-
-            # Skip the file if it hasn't changed, store it if it's a duplicate
-            duplicate = False
-            table = get_table(parts)
-            if table is None:
-                try:
-                    unknown_folders[text_id] += 1
-                except KeyError:
-                    unknown_folders[text_id] = 1
-                continue
-
-            if table == 'conteneurs':
-                prev_rows = Conteneur \
-                    .select() \
-                    .where(Conteneur.id == text_id) \
-                    .dicts().limit(1)
-                prev_row = prev_rows[0] if len(prev_rows) > 0 else None
-                if prev_row:
-                    prev_row["dossier"] = None
-                    prev_row["cid"] = None
+    if table == 'conteneurs':
+        prev_rows = Conteneur \
+            .select() \
+            .where(Conteneur.id == text_id) \
+            .dicts().limit(1)
+        prev_row = prev_rows[0] if len(prev_rows) > 0 else None
+        if prev_row:
+            prev_row["dossier"] = None
+            prev_row["cid"] = None
+    else:
+        model = TABLE_TO_MODEL[table]
+        prev_rows = model \
+            .select(model.mtime, model.dossier, model.cid) \
+            .where(model.id == text_id) \
+            .dicts().limit(1)
+        prev_row = prev_rows[0] if len(prev_rows) > 0 else None
+    if prev_row:
+        if prev_row["dossier"] != dossier or prev_row["cid"] != text_cid:
+            if prev_row["mtime"] >= mtime:
+                duplicate = True
             else:
-                model = TABLE_TO_MODEL[table]
-                prev_rows = model \
-                    .select(model.mtime, model.dossier, model.cid) \
-                    .where(model.id == text_id) \
-                    .dicts().limit(1)
-                prev_row = prev_rows[0] if len(prev_rows) > 0 else None
-            if prev_row:
-                if prev_row["dossier"] != dossier or prev_row["cid"] != text_cid:
-                    if prev_row["mtime"] >= mtime:
-                        duplicate = True
-                    else:
-                        if table != 'conteneurs':
-                            model = TABLE_TO_MODEL[table]
-                            prev_row = model.select().where(model.id == text_id).dicts().get()
-                        data = {table: prev_row}
-                        data['liens'] = list(
-                            Lien.select().where(
-                                ((Lien.src_id == text_id) & (~ Lien._reversed)) |
-                                ((Lien.dst_id == text_id) & (Lien._reversed))
-                            ).dicts()
-                        )
-                        if table == 'sections':
-                            data['sommaires'] = list(
-                                Sommaire.select().where(
-                                    (Sommaire.parent == text_id) &
-                                    (Sommaire._source == 'section_ta_liens')
-                                ).dicts()
-                            )
-                        elif table == 'textes_structs':
-                            data['sommaires'] = list(
-                                Sommaire.select()
-                                    .where(Sommaire._source == "struct/%s" % text_id)
-                                    .dicts()
-                            )
-                        data = {k: v for k, v in data.items() if v}
-                        DuplicateFile.insert(
-                            id=text_id,
-                            sous_dossier=SOUS_DOSSIER_MAP[table],
-                            cid=prev_row["cid"],
-                            dossier=prev_row["dossier"],
-                            mtime=prev_row["mtime"],
-                            data=json.dumps(data, default=json_serializer),
-                            other_cid=text_cid,
-                            other_dossier=dossier,
-                            other_mtime=mtime,
-                        ).on_conflict(
-                            conflict_target=[
-                                DuplicateFile.id,
-                                DuplicateFile.sous_dossier,
-                                DuplicateFile.cid,
-                                DuplicateFile.dossier
-                            ],
-                            preserve=[
-                                DuplicateFile.mtime,
-                                DuplicateFile.data,
-                                DuplicateFile.other_cid,
-                                DuplicateFile.other_dossier,
-                                DuplicateFile.other_mtime,
-                            ]
-                        ).execute()
-                        count_one('upsert into duplicate_files')
-                elif prev_row["mtime"] == mtime:
-                    skipped += 1
-                    continue
-
-            # Check the ID
-            if tag == 'SECTION_TA':
-                assert root.find('ID').text == text_id
-            else:
-                meta_commun = meta.find('META_COMMUN')
-                assert meta_commun.find('ID').text == text_id
-                nature = meta_commun.find('NATURE').text
-
-            # Extract the data we want
-            attrs = {}
-            liens = ()
-            sommaires = ()
-            tetiers = []
-            articles_calipsos = []
-            if tag == 'ARTICLE':
-                assert nature == 'Article'
-                assert table == 'articles'
-                article_id = text_id
-                contexte = root.find('CONTEXTE/TEXTE')
-                assert attr(contexte, 'cid') == text_cid
-                sections = contexte.findall('.//TITRE_TM')
-                if sections:
-                    attrs['section'] = attr(sections[-1], 'id')
-                meta_article = meta.find('META_SPEC/META_ARTICLE')
-                scrape_tags(attrs, meta_article, META_ARTICLE_TAGS)
-                scrape_tags(attrs, root, ARTICLE_TAGS, unwrap=True)
-                current_calipsos = [innerHTML(c) for c in meta_article.findall('CALIPSOS/CALIPSO')]
-                calipsos |= set(current_calipsos)
-                articles_calipsos += [
-                    {'article_id': article_id, 'calipso_id': c} for c in current_calipsos
-                ]
-
-            elif tag == 'SECTION_TA':
-                assert table == 'sections'
-                scrape_tags(attrs, root, SECTION_TA_TAGS)
-                section_id = text_id
-                contexte = root.find('CONTEXTE/TEXTE')
-                assert attr(contexte, 'cid') == text_cid
-                parents = contexte.findall('.//TITRE_TM')
-                if parents:
-                    attrs['parent'] = attr(parents[-1], 'id')
-                sommaires = [
-                    {
-                        'parent': section_id,
-                        'element': attr(lien, 'id'),
-                        'debut': attr(lien, 'debut'),
-                        'fin': attr(lien, 'fin'),
-                        'etat': attr(lien, 'etat'),
-                        'num': attr(lien, 'num'),
-                        'position': i,
-                        '_source': 'section_ta_liens',
-                    }
-                    for i, lien in enumerate(root.find('STRUCTURE_TA'))
-                ]
-            elif tag in ['TEXTELR', 'TEXTEKALI']:
-                assert table == 'textes_structs'
-                meta_spec = meta.find('META_SPEC')
-                meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
-                assert meta_chronicle.find('CID').text == text_cid
-                scrape_tags(attrs, root, TEXTELR_TAGS)
-                sommaires = [
-                    {
-                        'parent': text_id,
-                        'element': attr(lien, 'id'),
-                        'debut': attr(lien, 'debut'),
-                        'fin': attr(lien, 'fin'),
-                        'etat': attr(lien, 'etat'),
-                        'position': i,
-                        '_source': 'struct/' + text_id,
-                    }
-                    for i, lien in enumerate(root.find('STRUCT'))
-                ]
-            elif tag == 'TEXTE_VERSION':
-                assert table == 'textes_versions'
-                attrs['nature'] = nature
-                meta_spec = meta.find('META_SPEC')
-                meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
-                assert meta_chronicle.find('CID').text == text_cid
-                scrape_tags(attrs, meta_chronicle, META_CHRONICLE_TAGS)
-                meta_version = meta_spec.find('META_TEXTE_VERSION')
-                scrape_tags(attrs, meta_version, META_VERSION_TAGS)
-                scrape_tags(attrs, root, TEXTE_VERSION_TAGS, unwrap=True)
-            elif tag == 'IDCC':
-                assert table == 'conteneurs'
-                attrs['nature'] = nature
-                meta_spec = meta.find('META_SPEC')
-                meta_conteneur = meta_spec.find('META_CONTENEUR')
-                scrape_tags(attrs, meta_conteneur, META_CONTENEUR_TAGS)
-                sommaires = []
-                for i, tm in enumerate(root.find('STRUCTURE_TXT')):
-                    lien_txts = tm.find('LIEN_TXT')
-                    if lien_txts is not None:
-                        tetier_id = "KALITM%s-%s" % (text_id[8:], i)
-                        sommaires.append(
-                            {
-                                'parent': text_id,
-                                'element': tetier_id,
-                                'debut': attr(tm, 'debut'),
-                                'fin': attr(tm, 'fin'),
-                                'etat': attr(tm, 'etat'),
-                                'position': i,
-                                '_source': text_id,
-                            }
-                        )
-                        tetier = {
-                            'id': tetier_id,
-                            'niv': int(attr(tm, 'niv')),
-                            'conteneur_id': text_id
-                        }
-                        scrape_tags(tetier, tm, TM_TAGS)
-                        tetiers.append(tetier)
-                        for y, child in enumerate(tm):
-                            if child.tag == 'TITRE_TM':
-                                continue
-                            elif child.tag == 'LIEN_TXT':
-                                sommaires.append({
-                                    'parent': tetier_id,
-                                    'element': attr(child, 'idtxt'),
-                                    'position': y,
-                                    '_source': text_id
-                                })
-            else:
-                raise Exception('unexpected tag: '+tag)
-
-            if process_links and tag in ('ARTICLE', 'TEXTE_VERSION'):
-                e = root if tag == 'ARTICLE' else meta_version
-                liens_tags = e.find('LIENS')
-                if liens_tags is not None:
-                    liens = []
-                    for lien in liens_tags:
-                        typelien, sens = attr(lien, 'typelien'), attr(lien, 'sens')
-                        src_id, dst_id = text_id, attr(lien, 'id')
-                        if sens == 'cible':
-                            assert dst_id
-                            src_id, dst_id = dst_id, src_id
-                            dst_cid = dst_titre = ''
-                            typelien = TYPELIEN_MAP.get(typelien, typelien+'_R')
-                            _reversed = True
-                        else:
-                            dst_cid = attr(lien, 'cidtexte')
-                            dst_titre = lien.text
-                            _reversed = False
-                        liens.append({
-                            'src_id': src_id,
-                            'dst_cid': dst_cid,
-                            'dst_id': dst_id,
-                            'dst_titre': dst_titre,
-                            'typelien': typelien,
-                            '_reversed': _reversed,
-                        })
-
-            if duplicate:
-                data = {table: attrs}
-                if liens:
-                    data['liens'] = liens
-                if sommaires:
-                    data['sommaires'] = sommaires
-
+                if table != 'conteneurs':
+                    model = TABLE_TO_MODEL[table]
+                    prev_row = model.select().where(model.id == text_id).dicts().get()
+                data = {table: prev_row}
+                data['liens'] = list(
+                    Lien.select().where(
+                        ((Lien.src_id == text_id) & (~ Lien._reversed)) |
+                        ((Lien.dst_id == text_id) & (Lien._reversed))
+                    ).dicts()
+                )
+                if table == 'sections':
+                    data['sommaires'] = list(
+                        Sommaire.select().where(
+                            (Sommaire.parent == text_id) &
+                            (Sommaire._source == 'section_ta_liens')
+                        ).dicts()
+                    )
+                elif table == 'textes_structs':
+                    data['sommaires'] = list(
+                        Sommaire.select()
+                            .where(Sommaire._source == "struct/%s" % text_id)
+                            .dicts()
+                    )
+                data = {k: v for k, v in data.items() if v}
                 DuplicateFile.insert(
                     id=text_id,
                     sous_dossier=SOUS_DOSSIER_MAP[table],
-                    cid=text_cid,
-                    dossier=dossier,
-                    mtime=mtime,
+                    cid=prev_row["cid"],
+                    dossier=prev_row["dossier"],
+                    mtime=prev_row["mtime"],
                     data=json.dumps(data, default=json_serializer),
-                    other_cid=prev_row["cid"],
-                    other_dossier=prev_row["dossier"],
-                    other_mtime=prev_row["mtime"],
+                    other_cid=text_cid,
+                    other_dossier=dossier,
+                    other_mtime=mtime,
                 ).on_conflict(
                     conflict_target=[
                         DuplicateFile.id,
@@ -530,84 +314,296 @@ def process_archive(db, archive_path, process_links=True):
                         DuplicateFile.other_mtime,
                     ]
                 ).execute()
-                count_one('upsert into duplicate_files')
-                continue
+                counts['upsert into duplicate_files'] += 1
+        elif prev_row["mtime"] == mtime:
+            skipped += 1
+            return
 
-            if table != 'conteneurs':
-                attrs['dossier'] = dossier
-                attrs['cid'] = text_cid
-            attrs['mtime'] = mtime
+    # Check the ID
+    if tag == 'SECTION_TA':
+        assert root.find('ID').text == text_id
+    else:
+        meta_commun = meta.find('META_COMMUN')
+        assert meta_commun.find('ID').text == text_id
+        nature = meta_commun.find('NATURE').text
 
-            if prev_row:
-                # Delete the associated rows
-                if tag == 'SECTION_TA':
-                    deleted_linked_rows = Sommaire.delete().where(
-                        (Sommaire.parent == section_id) &
-                        (Sommaire._source == 'section_ta_liens')
-                    ).execute()
-                    count(counts, 'delete from sommaires', deleted_linked_rows)
-                elif tag in ['TEXTELR', 'TEXTEKALI']:
-                    deleted_linked_rows = Sommaire.delete() \
-                        .where(Sommaire._source == 'struct/%s' % text_id) \
-                        .execute()
-                    count(counts, 'delete from sommaires', deleted_linked_rows)
-                elif tag == 'IDCC':
-                    deleted_linked_rows = Sommaire.delete() \
-                        .where(Sommaire._source == text_id) \
-                        .execute()
-                    count(counts, 'delete from sommaires', deleted_linked_rows)
-                    deleted_linked_rows = Tetier.delete() \
-                        .where(Tetier.conteneur_id == text_id) \
-                        .execute()
-                    count(counts, 'delete from tetiers', deleted_linked_rows)
-                if tag in ('ARTICLE', 'TEXTE_VERSION'):
-                    deleted_linked_rows = Lien.delete().where(
-                        ((Lien.src_id == text_id) & (~ Lien._reversed)) |
-                        ((Lien.dst_id == text_id) & (Lien._reversed))
-                    ).execute()
-                    count(counts, 'delete from liens', deleted_linked_rows)
-                if tag in ('ARTICLE'):
-                    deleted_linked_rows = ArticleCalipso.delete() \
-                        .where(ArticleCalipso.article_id == text_id) \
-                        .execute()
-                    count(counts, 'delete from articles_calipsos', deleted_linked_rows)
-                if table == 'textes_versions':
-                    deleted_linked_rows = TexteVersionBrute.delete() \
-                        .where(TexteVersionBrute.id == text_id) \
-                        .execute()
-                    count(counts, 'delete from textes_versions_brutes', deleted_linked_rows)
-                # Update the row
-                count_one('update in '+table)
-                model = TABLE_TO_MODEL[table]
-                model.update(**attrs).where(model.id == text_id).execute()
-            else:
-                count_one('insert into '+table)
-                attrs['id'] = text_id
-                model = TABLE_TO_MODEL[table]
-                model.create(**attrs)
+    # Extract the data we want
+    attrs = {}
+    liens = ()
+    sommaires = ()
+    tetiers = []
+    articles_calipsos = []
+    if tag == 'ARTICLE':
+        assert nature == 'Article'
+        assert table == 'articles'
+        article_id = text_id
+        contexte = root.find('CONTEXTE/TEXTE')
+        assert attr(contexte, 'cid') == text_cid
+        sections = contexte.findall('.//TITRE_TM')
+        if sections:
+            attrs['section'] = attr(sections[-1], 'id')
+        meta_article = meta.find('META_SPEC/META_ARTICLE')
+        scrape_tags(attrs, meta_article, META_ARTICLE_TAGS)
+        scrape_tags(attrs, root, ARTICLE_TAGS, unwrap=True)
+        current_calipsos = [innerHTML(c) for c in meta_article.findall('CALIPSOS/CALIPSO')]
+        calipsos |= set(current_calipsos)
+        articles_calipsos += [
+            {'article_id': article_id, 'calipso_id': c} for c in current_calipsos
+        ]
 
-            # Insert the associated rows
-            for lien in liens:
-                Lien.create(**lien)
-            count(counts, 'insert into liens', len(liens))
-            for sommaire in sommaires:
-                Sommaire.create(**sommaire)
-            count(counts, 'insert into sommaires', len(sommaires))
-            for tetier in tetiers:
-                Tetier.create(**tetier)
-            count(counts, 'insert into tetiers', len(tetiers))
-            for article_calipso in articles_calipsos:
-                ArticleCalipso.create(**article_calipso)
-            count(counts, 'insert into articles_calipsos', len(articles_calipsos))
+    elif tag == 'SECTION_TA':
+        assert table == 'sections'
+        scrape_tags(attrs, root, SECTION_TA_TAGS)
+        section_id = text_id
+        contexte = root.find('CONTEXTE/TEXTE')
+        assert attr(contexte, 'cid') == text_cid
+        parents = contexte.findall('.//TITRE_TM')
+        if parents:
+            attrs['parent'] = attr(parents[-1], 'id')
+        sommaires = [
+            {
+                'parent': section_id,
+                'element': attr(lien, 'id'),
+                'debut': attr(lien, 'debut'),
+                'fin': attr(lien, 'fin'),
+                'etat': attr(lien, 'etat'),
+                'num': attr(lien, 'num'),
+                'position': i,
+                '_source': 'section_ta_liens',
+            }
+            for i, lien in enumerate(root.find('STRUCTURE_TA'))
+        ]
+    elif tag in ['TEXTELR', 'TEXTEKALI']:
+        assert table == 'textes_structs'
+        meta_spec = meta.find('META_SPEC')
+        meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
+        assert meta_chronicle.find('CID').text == text_cid
+        scrape_tags(attrs, root, TEXTELR_TAGS)
+        sommaires = [
+            {
+                'parent': text_id,
+                'element': attr(lien, 'id'),
+                'debut': attr(lien, 'debut'),
+                'fin': attr(lien, 'fin'),
+                'etat': attr(lien, 'etat'),
+                'position': i,
+                '_source': 'struct/' + text_id,
+            }
+            for i, lien in enumerate(root.find('STRUCT'))
+        ]
+    elif tag == 'TEXTE_VERSION':
+        assert table == 'textes_versions'
+        attrs['nature'] = nature
+        meta_spec = meta.find('META_SPEC')
+        meta_chronicle = meta_spec.find('META_TEXTE_CHRONICLE')
+        assert meta_chronicle.find('CID').text == text_cid
+        scrape_tags(attrs, meta_chronicle, META_CHRONICLE_TAGS)
+        meta_version = meta_spec.find('META_TEXTE_VERSION')
+        scrape_tags(attrs, meta_version, META_VERSION_TAGS)
+        scrape_tags(attrs, root, TEXTE_VERSION_TAGS, unwrap=True)
+    elif tag == 'IDCC':
+        assert table == 'conteneurs'
+        attrs['nature'] = nature
+        meta_spec = meta.find('META_SPEC')
+        meta_conteneur = meta_spec.find('META_CONTENEUR')
+        scrape_tags(attrs, meta_conteneur, META_CONTENEUR_TAGS)
+        sommaires = []
+        for i, tm in enumerate(root.find('STRUCTURE_TXT')):
+            lien_txts = tm.find('LIEN_TXT')
+            if lien_txts is not None:
+                tetier_id = "KALITM%s-%s" % (text_id[8:], i)
+                sommaires.append(
+                    {
+                        'parent': text_id,
+                        'element': tetier_id,
+                        'debut': attr(tm, 'debut'),
+                        'fin': attr(tm, 'fin'),
+                        'etat': attr(tm, 'etat'),
+                        'position': i,
+                        '_source': text_id,
+                    }
+                )
+                tetier = {
+                    'id': tetier_id,
+                    'niv': int(attr(tm, 'niv')),
+                    'conteneur_id': text_id
+                }
+                scrape_tags(tetier, tm, TM_TAGS)
+                tetiers.append(tetier)
+                for y, child in enumerate(tm):
+                    if child.tag == 'TITRE_TM':
+                        return
+                    elif child.tag == 'LIEN_TXT':
+                        sommaires.append({
+                            'parent': tetier_id,
+                            'element': attr(child, 'idtxt'),
+                            'position': y,
+                            '_source': text_id
+                        })
+    else:
+        raise Exception('unexpected tag: '+tag)
 
+    if process_links and tag in ('ARTICLE', 'TEXTE_VERSION'):
+        e = root if tag == 'ARTICLE' else meta_version
+        liens_tags = e.find('LIENS')
+        if liens_tags is not None:
+            liens = []
+            for lien in liens_tags:
+                typelien, sens = attr(lien, 'typelien'), attr(lien, 'sens')
+                src_id, dst_id = text_id, attr(lien, 'id')
+                if sens == 'cible':
+                    assert dst_id
+                    src_id, dst_id = dst_id, src_id
+                    dst_cid = dst_titre = ''
+                    typelien = TYPELIEN_MAP.get(typelien, typelien+'_R')
+                    _reversed = True
+                else:
+                    dst_cid = attr(lien, 'cidtexte')
+                    dst_titre = lien.text
+                    _reversed = False
+                liens.append({
+                    'src_id': src_id,
+                    'dst_cid': dst_cid,
+                    'dst_id': dst_id,
+                    'dst_titre': dst_titre,
+                    'typelien': typelien,
+                    '_reversed': _reversed,
+                })
+
+    if duplicate:
+        data = {table: attrs}
+        if liens:
+            data['liens'] = liens
+        if sommaires:
+            data['sommaires'] = sommaires
+
+        DuplicateFile.insert(
+            id=text_id,
+            sous_dossier=SOUS_DOSSIER_MAP[table],
+            cid=text_cid,
+            dossier=dossier,
+            mtime=mtime,
+            data=json.dumps(data, default=json_serializer),
+            other_cid=prev_row["cid"],
+            other_dossier=prev_row["dossier"],
+            other_mtime=prev_row["mtime"],
+        ).on_conflict(
+            conflict_target=[
+                DuplicateFile.id,
+                DuplicateFile.sous_dossier,
+                DuplicateFile.cid,
+                DuplicateFile.dossier
+            ],
+            preserve=[
+                DuplicateFile.mtime,
+                DuplicateFile.data,
+                DuplicateFile.other_cid,
+                DuplicateFile.other_dossier,
+                DuplicateFile.other_mtime,
+            ]
+        ).execute()
+        counts['upsert into duplicate_files'] += 1
+        return
+
+    if table != 'conteneurs':
+        attrs['dossier'] = dossier
+        attrs['cid'] = text_cid
+    attrs['mtime'] = mtime
+
+    if prev_row:
+        # Delete the associated rows
+        if tag == 'SECTION_TA':
+            deleted_linked_rows = Sommaire.delete().where(
+                (Sommaire.parent == section_id) &
+                (Sommaire._source == 'section_ta_liens')
+            ).execute()
+            counts['delete from sommaires'] += deleted_linked_rows
+        elif tag in ['TEXTELR', 'TEXTEKALI']:
+            deleted_linked_rows = Sommaire.delete() \
+                .where(Sommaire._source == 'struct/%s' % text_id) \
+                .execute()
+            counts['delete from sommaires'] += deleted_linked_rows
+        elif tag == 'IDCC':
+            deleted_linked_rows = Sommaire.delete() \
+                .where(Sommaire._source == text_id) \
+                .execute()
+            counts['delete from sommaires'] += deleted_linked_rows
+            deleted_linked_rows = Tetier.delete() \
+                .where(Tetier.conteneur_id == text_id) \
+                .execute()
+            counts['delete from tetiers'] += deleted_linked_rows
+        if tag in ('ARTICLE', 'TEXTE_VERSION'):
+            deleted_linked_rows = Lien.delete().where(
+                ((Lien.src_id == text_id) & (~ Lien._reversed)) |
+                ((Lien.dst_id == text_id) & (Lien._reversed))
+            ).execute()
+            counts['delete from liens'] += deleted_linked_rows
+        if tag in ('ARTICLE'):
+            deleted_linked_rows = ArticleCalipso.delete() \
+                .where(ArticleCalipso.article_id == text_id) \
+                .execute()
+            counts['delete from articles_calipsos'] += deleted_linked_rows
+        if table == 'textes_versions':
+            deleted_linked_rows = TexteVersionBrute.delete() \
+                .where(TexteVersionBrute.id == text_id) \
+                .execute()
+            counts['delete from textes_versions_brutes'] += deleted_linked_rows
+        # Update the row
+        counts['update in '+table] += 1
+        model = TABLE_TO_MODEL[table]
+        model.update(**attrs).where(model.id == text_id).execute()
+    else:
+        counts['insert into '+table] += 1
+        attrs['id'] = text_id
+        model = TABLE_TO_MODEL[table]
+        model.create(**attrs)
+
+    # Insert the associated rows
+    for lien in liens:
+        Lien.create(**lien)
+    counts['insert into liens'] += len(liens)
+
+    for sommaire in sommaires:
+        Sommaire.create(**sommaire)
+    counts['insert into sommaires'] += len(sommaires)
+
+    for tetier in tetiers:
+        Tetier.create(**tetier)
+    counts['insert into tetiers'] += len(tetiers)
+
+    for article_calipso in articles_calipsos:
+        ArticleCalipso.create(**article_calipso)
+    counts['insert into articles_calipsos'] += len(articles_calipsos)
+
+
+def process_archive(db, archive_path, process_links=True):
+    counts = defaultdict(lambda: 0)
+    base = DBMeta.get(DBMeta.key == 'base').value or 'LEGI'
+    skipped = 0
+    unknown_folders = defaultdict(lambda: 0)
+    liste_suppression = []
+    calipsos = set()
+    xml = etree.XMLParser(remove_blank_text=True)
+    c = 0
+    with libarchive.file_reader(archive_path) as archive:
+        for entry in tqdm(archive):
+            c += 1
+            if c > 5000:
+                break
+            process_file(
+                xml, entry, base, unknown_folders, counts,
+                liste_suppression, calipsos, process_links, skipped
+            )
             db.commit()
 
     for calipso in calipsos:
         Calipso.insert(id=calipso).on_conflict_ignore().execute()
-    count(counts, 'insert into calipsos', len(calipsos))
+    counts['insert into calipsos'] += len(calipsos)
 
-    print("made", sum(counts.values()), "changes in the database:",
-          json.dumps(counts, indent=4, sort_keys=True))
+    print(
+        "made %s changes in the database:" % sum(counts.values()),
+        json.dumps(counts, indent=4, sort_keys=True)
+    )
 
     if skipped:
         print("skipped", skipped, "files that haven't changed")
@@ -617,7 +613,7 @@ def process_archive(db, archive_path, process_links=True):
             print("skipped", x, "files in unknown folder `%s`" % d)
 
     if liste_suppression:
-        suppress(base, get_table, db, liste_suppression)
+        suppress(base, db, liste_suppression)
 
 
 def main():
