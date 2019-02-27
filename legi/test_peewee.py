@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import os
-from models import db_proxy, DBMeta, DuplicateFile
+from models import db_proxy, DBMeta, DuplicateFile, Conteneur
 from playhouse.db_url import connect
 
 
@@ -20,10 +20,6 @@ db.commit()
 # res4 = db.commit()
 # print("res4 is %s" % res4)
 
-df = len(DuplicateFile.select() \
-    .where(DuplicateFile.id == 'KALIARTI000026951576a') \
-    .order_by(DuplicateFile.mtime.desc()) \
-    .limit(1) \
-    .dicts())
+res = Conteneur.select("null as dossier").where(Conteneur.id == 'KALICONT000030400200').dicts().get()
 
-print(df)
+print(res)

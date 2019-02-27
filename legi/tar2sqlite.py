@@ -273,30 +273,28 @@ def process_archive(db, archive_path, process_links=True):
                 continue
 
             if table == 'conteneurs':
-                prev_row = db.one("""
-                    SELECT mtime, null AS dossier, null AS cid
-                    FROM {0}
-                    WHERE id = {1}
-                """.format(table, db.interpolation_char), (text_id,))
+                prev_rows = Conteneur \
+                    .select(Conteneur.mtime) \
+                    .where(Conteneur.id == text_id) \
+                    .dicts().limit(1)
+                prev_row = prev_rows[0] if len(prev_rows) > 0 else {}
+                prev_row["dossier"] = None
+                prev_row["cid"] = None
             else:
-                prev_row = db.one("""
-                    SELECT mtime, dossier, cid
-                    FROM {0}
-                    WHERE id = {1}
-                """.format(table, db.interpolation_char), (text_id,))
-
+                model = TABLE_TO_MODEL[table]
+                prev_rows = model \
+                    .select(model.mtime, model.dossier, model.cid) \
+                    .where(model.id == text_id) \
+                    .dicts().limit(1)
+                prev_row = prev_rows[0] if len(prev_rows) > 0 else {}
             if prev_row:
-                prev_mtime, prev_dossier, prev_cid = prev_row
-                if prev_dossier != dossier or prev_cid != text_cid:
-                    if prev_mtime >= mtime:
+                if prev_row["dossier"] != dossier or prev_row["cid"] != text_cid:
+                    if prev_row["mtime"] >= mtime:
                         duplicate = True
                     else:
-                        prev_row_dict = db.one("""
-                            SELECT *
-                              FROM {0}
-                             WHERE id = {1}
-                        """.format(table, db.interpolation_char), (text_id,), to_dict=True)
-                        data = {table: prev_row_dict}
+                        model = TABLE_TO_MODEL[table]
+                        prev_row = model.select().where(model.id == text_id).dicts().get()
+                        data = {table: prev_row}
                         data['liens'] = list(
                             Lien.select().where(
                                 ((Lien.src_id == text_id) & (~ Lien._reversed)) |
@@ -320,9 +318,9 @@ def process_archive(db, archive_path, process_links=True):
                         DuplicateFile.insert(
                             id=text_id,
                             sous_dossier=SOUS_DOSSIER_MAP[table],
-                            cid=prev_cid,
-                            dossier=prev_dossier,
-                            mtime=prev_mtime,
+                            cid=prev_row["cid"],
+                            dossier=prev_row["dossier"],
+                            mtime=prev_row["mtime"],
                             data=json.dumps(data, default=json_serializer),
                             other_cid=text_cid,
                             other_dossier=dossier,
@@ -343,7 +341,7 @@ def process_archive(db, archive_path, process_links=True):
                             ]
                         ).execute()
                         count_one('upsert into duplicate_files')
-                elif prev_mtime == mtime:
+                elif prev_row["mtime"] == mtime:
                     skipped += 1
                     continue
 
@@ -512,7 +510,7 @@ def process_archive(db, archive_path, process_links=True):
                     dossier=dossier,
                     mtime=mtime,
                     data=json.dumps(data, default=json_serializer),
-                    other_cid=prev_cid,
+                    other_cid=prev_row["cid"],
                     other_dossier=prev_dossier,
                     other_mtime=prev_mtime,
                 ).on_conflict(
