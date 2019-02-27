@@ -47,7 +47,7 @@ Cette commande lit tous les fichiers dans `./data` et crée ou met à jour une b
 docker run --rm -t         \
     -v $PWD/data:/data     \
     socialgouv/legi.py     \
-    python -m legi.tar2sqlite /data/LEGI.sqlite /data --base LEGI
+    python -m legi.importer /data/LEGI.sqlite /data --base LEGI
 ```
 
 Le fichier sera crée localement dans `./data/legi.sqlite` via le volume docker.

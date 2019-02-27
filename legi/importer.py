@@ -1,5 +1,5 @@
 """
-Extracts LEGI tar archives into an SQL DB
+Imports LEGI tar archives into an SQL DB
 """
 
 from argparse import ArgumentParser
@@ -578,7 +578,8 @@ def process_archive(db, archive_path, process_links=True):
                     count(counts, 'delete from textes_versions_brutes', deleted_linked_rows)
                 # Update the row
                 count_one('update in '+table)
-                db.update(table, dict(id=text_id), attrs)
+                model = TABLE_TO_MODEL[table]
+                model.update(**attrs).where(model.id == text_id).execute()
             else:
                 count_one('insert into '+table)
                 attrs['id'] = text_id
@@ -587,17 +588,19 @@ def process_archive(db, archive_path, process_links=True):
 
             # Insert the associated rows
             for lien in liens:
-                db.insert('liens', lien)
+                Lien.create(**lien)
             count(counts, 'insert into liens', len(liens))
             for sommaire in sommaires:
-                db.insert('sommaires', sommaire)
+                Sommaire.create(**sommaire)
             count(counts, 'insert into sommaires', len(sommaires))
             for tetier in tetiers:
-                db.insert('tetiers', tetier)
+                Tetier.create(**tetier)
             count(counts, 'insert into tetiers', len(tetiers))
             for article_calipso in articles_calipsos:
-                db.insert('articles_calipsos', article_calipso)
+                ArticleCalipso.create(**article_calipso)
             count(counts, 'insert into articles_calipsos', len(articles_calipsos))
+
+            db.commit()
 
     for calipso in calipsos:
         Calipso.insert(id=calipso).on_conflict_ignore().execute()
@@ -638,11 +641,14 @@ def main():
     db = connect_db(args.db, pragmas=args.pragma)
     db_proxy.initialize(db)
 
-    base = db.one("SELECT value FROM db_meta WHERE key = 'base'")
-    last_update = db.one("SELECT value FROM db_meta WHERE key = 'last_update'")
+    db_meta_base = DBMeta.get_or_none(key='base')
+    base = db_meta_base.value if db_meta_base else None
+    db_meta_last_update = DBMeta.get_or_none(key='last_update')
+    last_update = db_meta_last_update.value if db_meta_last_update else None
+
     if not base:
         base = args.base.upper() if args.base and not last_update else 'LEGI'
-        db.insert('db_meta', dict(key='base', value=base))
+        DBMeta.create(key='base', value=base)
     if args.base and base != args.base.upper():
         print('!> Wrong database: requested '+args.base.upper()+' but existing database is '+base+'.')
         raise SystemExit(1)
@@ -656,9 +662,10 @@ def main():
         raise SystemExit(1)
 
     # Check and record the data mode
-    db_meta_raw = db.one("SELECT value FROM db_meta WHERE key = 'raw'")
+    db_meta_raw = DBMeta.get_or_none(key='raw')
+    db_meta_raw = db_meta_raw.value if db_meta_raw else None
     if args.raw:
-        versions_brutes = bool(db.one("SELECT 1 FROM textes_versions_brutes LIMIT 1"))
+        versions_brutes = bool(TexteVersionBrute.get_or_none())
         data_is_not_raw = versions_brutes or db_meta_raw is False
         if data_is_not_raw:
             print("!> Can't honor --raw option, the data has already been modified previously.")
@@ -669,13 +676,13 @@ def main():
             .execute()
 
     # Handle the --skip-links option
-    has_links = bool(db.one("SELECT 1 FROM liens LIMIT 1"))
+    has_links = bool(Lien.get_or_none())
     if not args.skip_links and not has_links and last_update is not None:
         args.skip_links = True
         print("> Warning: links will not be processed because this DB was built with --skip-links.")
     elif args.skip_links and has_links:
         print("> Deleting links...")
-        db.run("DELETE FROM liens")
+        Lien.delete()
 
     # Look for new archives in the given directory
     print("> last_update is", last_update)
@@ -690,9 +697,10 @@ def main():
     most_recent_global = [t[0] for t in archives if t[1]][-1]
     if last_update and most_recent_global > last_update:
         print("> There is a new global archive, recreating the DB from scratch!")
-        db.close()
-        os.rename(db.address, db.address + '.back')
-        db = connect_db(args.db, pragmas=args.pragma)
+        raise Exception("not implemented yet")
+        # db.close()
+        # os.rename(db.address, db.address + '.back')
+        # db = connect_db(args.db, pragmas=args.pragma)
     archives, skipped = partition(
         archives, lambda t: t[0] >= most_recent_global and t[0] > (last_update or '')
     )
