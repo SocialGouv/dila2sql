@@ -1,4 +1,4 @@
-from peewee import *
+from peewee import Proxy, Model, CharField, TextField, DateField, IntegerField, BooleanField, CompositeKey
 
 db_proxy = Proxy()
 
@@ -63,6 +63,7 @@ class DBMeta(BaseModel):
     key = CharField(primary_key=True)
     value = CharField()
 
+
 class DuplicateFile(BaseModel):
     class Meta:
         table_name = "duplicate_files"
@@ -89,7 +90,7 @@ class Lien(BaseModel):
     dst_id = CharField()
     dst_titre = TextField()
     typelien = TextField()
-    _reversed  = BooleanField()
+    _reversed = BooleanField()
 
 
 class Section(BaseModel):
@@ -186,7 +187,6 @@ class TexteVersion(BaseModel):
     cid = CharField()
     mtime = IntegerField()
     texte_id = CharField()
-
 
 
 class TexteVersionBrute(BaseModel):

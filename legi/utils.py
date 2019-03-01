@@ -8,8 +8,7 @@ from sqlite3 import IntegrityError, Row
 import sre_parse
 import traceback
 from unicodedata import combining, decomposition, normalize
-from peewee import SqliteDatabase, PostgresqlDatabase, OperationalError, ProgrammingError
-from urllib.parse import urlparse
+from peewee import SqliteDatabase, PostgresqlDatabase, ProgrammingError
 from playhouse.db_url import connect
 from datetime import date
 
@@ -93,7 +92,7 @@ def connect_db(db_url, create_schema=True, update_schema=True, pragmas=()):
     if update_schema:
         r = run_migrations(db)
         if r == '!RECREATE!':
-            return connect_db(db_url, row_factory=row_factory, create_schema=True)
+            return connect_db(db_url, create_schema=True)
 
     for pragma in pragmas:
         query = "PRAGMA " + pragma
@@ -370,4 +369,4 @@ def show_match(m, n=30, wrapper='%s{%s}%s'):
 def json_serializer(obj):
     if isinstance(obj, date):
         return str(obj)
-    raise TypeError ("Type %s not serializable" % type(obj))
+    raise TypeError("Type %s not serializable" % type(obj))

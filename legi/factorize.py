@@ -7,7 +7,7 @@ from .utils import connect_db
 
 
 def connect_by_nature_num(db):
-    db.run("""
+    db.execute_sql("""
         UPDATE textes_versions
            SET texte_id = (
                    SELECT id
@@ -23,11 +23,12 @@ def connect_by_nature_num(db):
                       AND t.num = textes_versions.num
                );
     """)
+    db.commit()
     print('connected %i rows of textes_versions based on (nature, num)' % db.changes())
 
 
 def connect_by_nor(db):
-    db.run("""
+    db.execute_sql("""
         CREATE TEMP TABLE texte_by_nor AS
             SELECT nor, min(texte_id)
               FROM textes_versions
@@ -38,8 +39,10 @@ def connect_by_nor(db):
                AND min(num) = max(num)
                AND min(texte_id) = max(texte_id);
     """)
-    db.run("CREATE UNIQUE INDEX texte_by_nor_index ON texte_by_nor (nor)")
-    db.run("""
+    db.commit()
+    db.execute_sql("CREATE UNIQUE INDEX texte_by_nor_index ON texte_by_nor (nor)")
+    db.commit()
+    db.execute_sql("""
         UPDATE textes_versions
            SET texte_id = (
                    SELECT texte_id
@@ -53,19 +56,23 @@ def connect_by_nor(db):
                     WHERE t.nor = textes_versions.nor
                );
     """)
+    db.commit()
     print('connected %i rows of textes_versions based on nor' % db.changes())
-    db.run("DROP TABLE texte_by_nor")
+    db.execute_sql("DROP TABLE texte_by_nor")
+    db.commit()
 
 
 def connect_by_titrefull_s(db):
-    db.run("""
+    db.execute_sql("""
         CREATE TEMP TABLE texte_by_titrefull_s AS
             SELECT DISTINCT titrefull_s, texte_id
               FROM textes_versions
              WHERE texte_id IS NOT NULL;
     """)
-    db.run("CREATE UNIQUE INDEX texte_by_titrefull_s_index ON texte_by_titrefull_s (titrefull_s)")
-    db.run("""
+    db.commit()
+    db.execute_sql("CREATE UNIQUE INDEX texte_by_titrefull_s_index ON texte_by_titrefull_s (titrefull_s)")
+    db.commit()
+    db.execute_sql("""
         UPDATE textes_versions
            SET texte_id = (
                    SELECT texte_id
@@ -79,12 +86,14 @@ def connect_by_titrefull_s(db):
                     WHERE t.titrefull_s = textes_versions.titrefull_s
                );
     """)
+    db.commit()
     print('connected %i rows of textes_versions based on titrefull_s' % db.changes())
-    db.run("DROP TABLE texte_by_titrefull_s")
+    db.execute_sql("DROP TABLE texte_by_titrefull_s")
+    db.commit()
 
 
 def factorize_by(db, key):
-    duplicates = db.all("""
+    duplicates = db.execute_sql("""
         SELECT min(nature), {0}, group_concat(texte_id)
           FROM textes_versions
          WHERE texte_id IS NOT NULL
@@ -98,11 +107,13 @@ def factorize_by(db, key):
         ids = tuple(row[2].split(','))
         uid = db.one("SELECT id FROM textes ORDER BY id DESC LIMIT 1") + 1
         if key == 'cid':
-            db.run("INSERT INTO textes (id, nature) VALUES (?, ?)", (uid, row[0]))
+            db.execute_sql("INSERT INTO textes (id, nature) VALUES (?, ?)", (uid, row[0]))
         else:
-            db.run("INSERT INTO textes (id, nature, {0}) VALUES (?, ?, ?)".format(key),
-                   (uid, row[0], row[1]))
-        db.run("""
+            db.execute_sql(
+                "INSERT INTO textes (id, nature, {0}) VALUES (?, ?, ?)".format(key),
+                (uid, row[0], row[1])
+            )
+        db.execute_sql("""
             UPDATE textes_versions
                SET texte_id = %s
              WHERE texte_id IN (%s);
@@ -117,7 +128,7 @@ def main(db):
 
     connect_by_nature_num(db)
 
-    db.run("""
+    db.execute_sql("""
         INSERT INTO textes (nature, num)
              SELECT nature, num
                FROM textes_versions
@@ -133,7 +144,7 @@ def main(db):
     connect_by_nor(db)
     connect_by_titrefull_s(db)
 
-    db.run("""
+    db.execute_sql("""
         INSERT INTO textes (nature, nor)
             SELECT nature, nor
               FROM textes_versions
@@ -145,7 +156,7 @@ def main(db):
     """)
     print('inserted %i rows in textes based on nor' % db.changes())
 
-    db.run("""
+    db.execute_sql("""
         UPDATE textes_versions
            SET texte_id = (
                    SELECT id
@@ -164,7 +175,7 @@ def main(db):
     factorize_by(db, 'titrefull_s')
     connect_by_titrefull_s(db)
 
-    db.run("""
+    db.execute_sql("""
         INSERT INTO textes (nature, titrefull_s)
             SELECT nature, titrefull_s
               FROM textes_versions
@@ -173,7 +184,7 @@ def main(db):
     """)
     print('inserted %i rows in textes based on titrefull_s' % db.changes())
 
-    db.run("""
+    db.execute_sql("""
         UPDATE textes_versions
            SET texte_id = (
                    SELECT id
@@ -192,7 +203,7 @@ def main(db):
     factorize_by(db, 'cid')
 
     xml = etree.XMLParser(remove_blank_text=True)
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT s.id, s.versions, v.texte_id
           FROM textes_structs s
           JOIN textes_versions v ON v.id = s.id
@@ -211,7 +222,7 @@ def main(db):
                       texte_id, "et", dup_texte_id, "ne devraient être qu'un")
 
     # Clean up factorized texts
-    db.run("""
+    db.execute_sql("""
         DELETE FROM textes
          WHERE NOT EXISTS (
                    SELECT *
@@ -226,7 +237,7 @@ def main(db):
         print("Fail: %i rows haven't been connected" % left)
     else:
         # SQLite doesn't implement DROP COLUMN so we just nullify them instead
-        db.run("UPDATE textes SET nor = NULL, titrefull_s = NULL")
+        db.execute_sql("UPDATE textes SET nor = NULL, titrefull_s = NULL")
         print("done")
 
     n = db.one("SELECT count(*) FROM textes")

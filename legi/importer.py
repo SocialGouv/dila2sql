@@ -21,8 +21,7 @@ except ImportError:
 from .anomalies import detect_anomalies
 from .utils import connect_db, partition, json_serializer
 from .models import db_proxy, DBMeta, Calipso, DuplicateFile, \
-    ArticleCalipso, Article, \
-    TexteVersionBrute, Tetier, \
+    ArticleCalipso, TexteVersionBrute, Tetier, \
     Conteneur, Lien, Sommaire, TABLE_TO_MODEL
 
 
@@ -191,8 +190,9 @@ def suppress(base, db, liste_suppression):
     print("made", total, "changes in the database based on liste_suppression_"+base.lower()+".dat:",
           json.dumps(counts, indent=4, sort_keys=True))
 
+
 def process_file(
-    xml, entry, base, unkown_folders, counts,
+    xml, entry, base, unknown_folders, counts,
     liste_suppression, calipsos, process_links, skipped
 ):
     path = entry.pathname
@@ -205,10 +205,12 @@ def process_file(
     if parts[1] == base.lower():
         path = path[len(parts[0])+1:]
         parts = parts[1:]
-    if parts[0] not in ['legi', 'jorf', 'kali'] or \
-        (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or \
-        (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or \
-        (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur']):
+    if (
+        parts[0] not in ['legi', 'jorf', 'kali'] or
+        (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or
+        (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or
+        (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur'])
+    ):
         # https://github.com/Legilibre/legi.py/issues/23
         unknown_folders[parts[2]] += 1
         return
