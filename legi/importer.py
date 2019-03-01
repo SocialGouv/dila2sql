@@ -584,12 +584,8 @@ def process_archive(db, archive_path, process_links=True):
     liste_suppression = []
     calipsos = set()
     xml = etree.XMLParser(remove_blank_text=True)
-    c = 0
     with libarchive.file_reader(archive_path) as archive:
         for entry in tqdm(archive):
-            c += 1
-            if c > 5000:
-                break
             process_file(
                 xml, entry, base, unknown_folders, counts,
                 liste_suppression, calipsos, process_links, skipped
