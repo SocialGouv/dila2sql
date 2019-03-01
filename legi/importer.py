@@ -434,7 +434,7 @@ def process_file(
                 tetiers.append(tetier)
                 for y, child in enumerate(tm):
                     if child.tag == 'TITRE_TM':
-                        return
+                        continue
                     elif child.tag == 'LIEN_TXT':
                         sommaires.append({
                             'parent': tetier_id,
