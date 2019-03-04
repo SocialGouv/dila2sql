@@ -8,3 +8,5 @@
 .tox/
 *.sqlite*
 /tarballs/
+*.xls
+*.csv
