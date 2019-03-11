@@ -2,13 +2,14 @@ from argparse import ArgumentParser
 from datetime import date, timedelta
 import sys
 
+from .models import db_proxy, DBMeta, Section, TexteStruct
 from .titles import NATURE_MAP_R, parse_titre, spaces_re
 from .utils import connect_db, reconstruct_path, strip_down
 
 
 def anomalies_date_fin_etat(db, err):
     a = [('articles', 'article'), ('textes_versions', 'texte/version')]
-    last_update = db.one("SELECT value FROM db_meta WHERE key = 'last_update'")
+    last_update = DBMeta.get(key='last_update').value
     day, heure = last_update.split('-')
     assert len(day) == 8
     annee, mois, jour = day[:4], day[4:6], day[6:]
@@ -16,7 +17,7 @@ def anomalies_date_fin_etat(db, err):
     near_future = date(int(annee), int(mois), int(jour)) + timedelta(days=5)
     near_future = near_future.isoformat()
     for table, sous_dossier in a:
-        q = db.all("""
+        q = db.execute_sql("""
             SELECT dossier, cid, id, date_fin, etat
               FROM {0}
              WHERE date_fin <> '2999-01-01'
@@ -32,7 +33,7 @@ def anomalies_date_fin_etat(db, err):
 
 
 def anomalies_element_sommaire(db, err):
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT cid, parent, _source, element, position
           FROM sommaires so
          WHERE ( CASE WHEN substr(so.element, 5, 4) = 'ARTI'
@@ -45,12 +46,12 @@ def anomalies_element_sommaire(db, err):
     for cid, parent, _source, element, position in q:
         if _source == 'section_ta_liens':
             source_id = parent
-            dossier = db.one("SELECT dossier FROM sections WHERE id = ?", (source_id,))
+            dossier = Section.select(Section.dossier).where(Section.id == source_id).get().dossier
             assert dossier
             sous_dossier = 'section_ta'
         elif _source.startswith('struct/'):
             source_id = _source[7:]
-            dossier = db.one("SELECT dossier FROM textes_structs WHERE id = ?", (source_id,))
+            dossier = TexteStruct.select(TexteStruct.dossier).where(TexteStruct.id == source_id).get().dossier
             assert dossier
             sous_dossier = 'texte/struct'
         else:
@@ -64,8 +65,8 @@ def anomalies_element_sommaire(db, err):
 
 
 def anomalies_orphans(db, err):
-    db.run("CREATE INDEX IF NOT EXISTS sommaires_element_idx ON sommaires (element)")
-    q = db.all("""
+    db.execute_sql("CREATE INDEX IF NOT EXISTS sommaires_element_idx ON sommaires (element)")
+    q = db.execute_sql("""
         SELECT dossier, cid, id
           FROM articles a
          WHERE (SELECT count(*) FROM sommaires so WHERE so.element = a.id) = 0
@@ -73,7 +74,7 @@ def anomalies_orphans(db, err):
     for dossier, cid, id in q:
         path = reconstruct_path(dossier, cid, 'article', id)
         err(path, "article orphelin, il n'apparaît dans aucun texte")
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT dossier, cid, id
           FROM sections s
          WHERE (SELECT count(*) FROM sommaires so WHERE so.element = s.id) = 0
@@ -85,7 +86,7 @@ def anomalies_orphans(db, err):
 
 
 def anomalies_sections(db, err):
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT s.dossier, s.cid, s.id, num, debut, etat, count(*) as count
           FROM sommaires so
           JOIN sections s ON s.id = so.parent
@@ -101,7 +102,7 @@ def anomalies_sections(db, err):
             '", la date de début "', debut,
             '" et l\'état "', etat, '"')
 
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT DISTINCT s.dossier, s.cid, s.id, a.dossier, a.cid, a.id, so.etat, a.etat
           FROM sommaires so
           JOIN articles a ON a.id = so.element AND a.etat <> so.etat
@@ -125,7 +126,7 @@ def anomalies_textes_versions(db, err):
             title = title.replace('constitutionel', 'constitutionnel')
         return title
 
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT dossier, cid, id, titre, titrefull, nature, num, date_texte
           FROM textes_versions_brutes_view
     """)
@@ -208,7 +209,7 @@ def anomalies_textes_versions(db, err):
 
 
 def anomalies_textes_vides(db, err):
-    q = db.all("""
+    q = db.execute_sql("""
         SELECT dossier, cid, id
           FROM textes_structs ts
          WHERE (SELECT count(*) FROM sommaires so WHERE so.cid = ts.cid AND so._source = 'struct/'||ts.id) = 0
@@ -238,4 +239,13 @@ if __name__ == '__main__':
     p = ArgumentParser()
     p.add_argument('db')
     args = p.parse_args()
-    detect_anomalies(connect_db(args.db))
+
+    db = connect_db(args.db)
+    db_proxy.initialize(db)
+
+    db_base = DBMeta.get(key='base').value
+    if db_base != "LEGI":
+        print("anomalies script can only run with LEGI databases.")
+        exit(1)
+
+    detect_anomalies(db)
