@@ -632,7 +632,7 @@ def main():
     if not os.path.isdir(args.anomalies_dir):
         os.mkdir(args.anomalies_dir)
 
-    db = connect_db(args.db, pragmas=args.pragma)
+    db = connect_db(args.db)
     db_proxy.initialize(db)
 
     db_meta_base = DBMeta.get_or_none(key='base')

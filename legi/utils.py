@@ -1,16 +1,13 @@
-from collections import namedtuple
-from contextlib import contextmanager
-from itertools import chain, repeat
 import os
 import os.path
 import re
-from sqlite3 import IntegrityError, Row
 import sre_parse
 import traceback
 from unicodedata import combining, decomposition, normalize
-from peewee import SqliteDatabase, PostgresqlDatabase, ProgrammingError
+from peewee import SqliteDatabase, PostgresqlDatabase, ProgrammingError, IntegrityError
 from playhouse.db_url import connect
 from datetime import date
+from .models import db_proxy, DBMeta
 
 
 if not hasattr(re, 'Match'):
@@ -18,68 +15,12 @@ if not hasattr(re, 'Match'):
     re.Match = type(re.compile('').match(''))
 
 
-IGNORE = object()
-NIL = object()
 ROOT = os.path.dirname(__file__) + '/'
 
 
-@contextmanager
-def patch_object(obj, attr, value):
-    if value is IGNORE:
-        yield
-        return
-    backup = getattr(obj, attr, NIL)
-    setattr(obj, attr, value)
-    try:
-        yield
-    finally:
-        if backup is NIL:
-            delattr(obj, attr)
-        else:
-            setattr(obj, attr, backup)
-
-
-def dict_factory(cursor, row):
-    return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-
-
-def namedtuple_factory(cursor, row):
-    return namedtuple('Record', [col[0] for col in cursor.description])(*row)
-
-
-ROW_FACTORIES = {
-    'dict': dict_factory,
-    'namedtuple': namedtuple_factory,
-    'Row': Row,
-}
-
-
-def connect_db(db_url, create_schema=True, update_schema=True, pragmas=()):
+def connect_db(db_url, create_schema=True, update_schema=True):
     db = connect(db_url)
     db.interpolation_char = '?' if isinstance(db, SqliteDatabase) else "%s"
-
-    db.insert = inserter(db)
-    db.update = updater(db)
-    db.run = db.execute_sql
-
-    def all(*a, **kw):
-        to_dict = kw.get('to_dict', False)
-        with patch_object(db, 'row_factory', dict_factory if to_dict else IGNORE):
-            q = db.execute_sql(*a)
-        return iter_results(q)
-
-    # db.all(to_dict=True) should be replaced with select().dicts()
-
-    def one(*args, **kw):
-        to_dict = kw.get('to_dict', False)
-        with patch_object(db, 'row_factory', dict_factory if to_dict else IGNORE):
-            r = db.execute_sql(*args).fetchone()
-            if r and len(r) == 1 and not to_dict:
-                r = r[0]
-            return r
-
-    db.one = one
-    db.changes = lambda: 1
 
     if create_schema:
         if not db.table_exists("db_meta"):
@@ -94,72 +35,15 @@ def connect_db(db_url, create_schema=True, update_schema=True, pragmas=()):
         if r == '!RECREATE!':
             return connect_db(db_url, create_schema=True)
 
-    for pragma in pragmas:
-        query = "PRAGMA " + pragma
-        result = db.one(query)
-        print("> Sent `%s` to SQLite, got `%s` as result" % (query, result))
-
     return db
 
 
-def inserter(conn):
-    def insert(table, attrs):
-        keys, values = zip(*attrs.items())
-        keys = ','.join(keys)
-        placeholders = ','.join(repeat(conn.interpolation_char, len(attrs)))
-        try:
-            conn.execute_sql("""
-                INSERT INTO {0} ({1}) VALUES ({2})
-            """.format(table, keys, placeholders), values)
-            conn.commit()
-        except IntegrityError:
-            print(table, *attrs.items(), sep='\n    ')
-            raise
-    return insert
-
-
-def updater(conn):
-
-    def dict2sql(d, joiner=', '):
-        keys, values = zip(*d.items())
-        placeholders = joiner.join(
-            '%s = %s' % (k, conn.interpolation_char) for k in keys
-        )
-        return placeholders, values
-
-    def update(table, where, attrs):
-        placeholders, values = dict2sql(attrs)
-        where_placeholders, where_values = dict2sql(where, joiner=' AND ')
-        try:
-            conn.execute_sql(
-                "UPDATE {0} SET {1} WHERE {2}".format(
-                    table, placeholders, where_placeholders
-                ),
-                values + where_values
-            )
-            conn.commit()
-        except IntegrityError:
-            print(table, *chain(where.items(), attrs.items()), sep='\n    ')
-            raise
-
-    return update
-
-
-def iter_results(q):
-    while True:
-        r = q.fetchmany()
-        if not r:
-            return
-        for row in r:
-            yield row
-
-
 def run_migrations(db):
-    cursor = db.execute_sql("SELECT value FROM db_meta WHERE key = 'schema_version'")
-    row = cursor.fetchone()
-    v = int(row[0]) if row is not None else 0
+    db_proxy.initialize(db)
+    db_meta = DBMeta.select().where(DBMeta.key == 'schema_version').first()
+    v = int(db_meta.value) if db_meta else 0
     if v == 0:
-        db.insert('db_meta', dict(key='schema_version', value=v))
+        DBMeta.insert(key='schema_version', value=v).execute()
     migrations = open(ROOT + 'sql/migrations.sql').read().split('\n\n-- migration #')
     n = 0
     for m in migrations[1:]:
@@ -182,8 +66,7 @@ def run_migrations(db):
             r = input('Have you already run this migration? (y/N) ')
             if r.lower() != 'y':
                 raise SystemExit(1)
-        db.execute_sql("UPDATE db_meta SET value = ? WHERE key = 'schema_version'", (n,))
-        db.commit()
+        DBMeta.update(value=n).where(key='schema_version').execute()
     return n - v
 
 

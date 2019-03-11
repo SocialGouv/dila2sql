@@ -159,6 +159,7 @@ def main(db):
             HAVING min(nature) = max(nature)
                AND min(titrefull_s) = max(titrefull_s);
     """)
+    db.commit()
     print('inserted %i rows in textes based on nor' % cursor.rowcount)
 
     cursor = db.execute_sql("""
@@ -175,6 +176,7 @@ def main(db):
                     WHERE t.nor = textes_versions.nor
                );
     """)
+    db.commit()
     print('connected %i rows of textes_versions based on nor' % cursor.rowcount)
 
     factorize_by(db, 'titrefull_s')
@@ -187,6 +189,7 @@ def main(db):
              WHERE texte_id IS NULL
           GROUP BY titrefull_s;
     """)
+    db.commit()
     print('inserted %i rows in textes based on titrefull_s' % cursor.rowcount)
 
     cursor = db.execute_sql("""
@@ -203,6 +206,7 @@ def main(db):
                     WHERE t.titrefull_s = textes_versions.titrefull_s
                );
     """)
+    db.commit()
     print('connected %i rows of textes_versions based on titrefull_s' % cursor.rowcount)
 
     factorize_by(db, 'cid')
@@ -219,11 +223,9 @@ def main(db):
         xml.feed('</VERSIONS>')
         root = xml.close()
         for lien in root.findall('.//LIEN_TXT'):
-            texte_version = TexteVersion.select(texte_id). \
-                where(
-                    TexteVersion.id == lien.get('id') &
-                    TexteVersion.texte_id != texte_id
-                ).first()
+            texte_version = TexteVersion.select(texte_id) \
+                .where(TexteVersion.id == lien.get('id') & TexteVersion.texte_id != texte_id) \
+                .first()
             dup_texte_id = texte_version.texte_id if texte_version else None
             if dup_texte_id:
                 print("Erreur: selon les métadonnées de", version_id, "les textes",

@@ -66,6 +66,7 @@ def anomalies_element_sommaire(db, err):
 
 def anomalies_orphans(db, err):
     db.execute_sql("CREATE INDEX IF NOT EXISTS sommaires_element_idx ON sommaires (element)")
+    db.commit()
     q = db.execute_sql("""
         SELECT dossier, cid, id
           FROM articles a
@@ -82,7 +83,8 @@ def anomalies_orphans(db, err):
     for dossier, cid, id in q:
         path = reconstruct_path(dossier, cid, 'section_ta', id)
         err(path, "section orpheline, elle n'apparaît dans aucun texte")
-    db.run("DROP INDEX sommaires_element_idx")
+    db.execute_sql("DROP INDEX sommaires_element_idx")
+    db.commit()
 
 
 def anomalies_sections(db, err):
