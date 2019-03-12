@@ -89,6 +89,7 @@ def main(args):
         stream = iterate_cid(db, args.cid)
     else:
         stream = iterate_everything(db)
+    i = 0
     for i, t in enumerate(stream):
         if i >= args.limit:
             print('reached the limit (%i)' % args.limit)

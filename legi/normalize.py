@@ -775,7 +775,7 @@ def normalize_text_titles(db, dry_run=False, log_file=None):
                         orig_values['date_texte'] = date_texte
                         updates['date_texte'] = date_texte = date_texte_d
                         counts['updated date_texte'] += 1
-                    elif date_texte_d != date_texte:
+                    elif str(date_texte_d) != str(date_texte):
                         print('Incohérence: date: "', date_texte_d, '" (detectée) ≠ "', date_texte, '" (donnée)', sep='')
                         anomaly[0] = True
                 autorite_d = get_key('autorite', ignore_not_found=True)
@@ -846,7 +846,7 @@ def normalize_text_titles(db, dry_run=False, log_file=None):
                 orig_values.update(texte_version)
                 if not dry_run:
                     TexteVersionBrute.delete(). \
-                        where(TexteVersionBrute.id == orig_values.id).execute()
+                        where(TexteVersionBrute.id == orig_values['id']).execute()
                     TexteVersionBrute.insert(**orig_values).execute()
                 orig_values.clear()
 

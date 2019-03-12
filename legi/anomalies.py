@@ -21,8 +21,8 @@ def anomalies_date_fin_etat(db, err):
             SELECT dossier, cid, id, date_fin, etat
               FROM {0}
              WHERE date_fin <> '2999-01-01'
-               AND ( etat LIKE 'VIGUEUR%' AND date_fin < '{1}' OR
-                     etat NOT LIKE 'VIGUEUR%' AND etat <> 'ABROGE_DIFF' AND date_fin > '{2}'
+               AND ( etat LIKE 'VIGUEUR%%' AND date_fin < '{1}' OR
+                     etat NOT LIKE 'VIGUEUR%%' AND etat <> 'ABROGE_DIFF' AND date_fin > '{2}'
                    )
         """.format(table, current_day, near_future))
         for row in q:
@@ -33,6 +33,7 @@ def anomalies_date_fin_etat(db, err):
 
 
 def anomalies_element_sommaire(db, err):
+    # TODO : this was broken when removing cid from sommaires
     q = db.execute_sql("""
         SELECT cid, parent, _source, element, position
           FROM sommaires so
@@ -92,8 +93,8 @@ def anomalies_sections(db, err):
         SELECT s.dossier, s.cid, s.id, num, debut, etat, count(*) as count
           FROM sommaires so
           JOIN sections s ON s.id = so.parent
-         WHERE etat NOT LIKE 'MODIF%'
-           AND lower(num) NOT LIKE 'annexe%'
+         WHERE etat NOT LIKE 'MODIF%%'
+           AND lower(num) NOT LIKE 'annexe%%'
       GROUP BY s.id, num, debut, etat
         HAVING count(*) > 1
     """)
