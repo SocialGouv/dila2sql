@@ -108,20 +108,11 @@ def factorize_by(db, key):
         ids = tuple(row[2].split(','))
         uid = Texte.select(Texte.id).order_by(Texte.id.desc()).first().id + 1
         if key == 'cid':
-            db.execute_sql("INSERT INTO textes (id, nature) VALUES (?, ?)", (uid, row[0]))
-            db.commit()
+            Texte.insert(id=uid, nature=row[0]).execute()
         else:
-            db.execute_sql(
-                "INSERT INTO textes (id, nature, {0}) VALUES (?, ?, ?)".format(key),
-                (uid, row[0], row[1])
-            )
-            db.commit()
-        db.execute_sql("""
-            UPDATE textes_versions
-               SET texte_id = %s
-             WHERE texte_id IN (%s);
-        """ % (uid, row[2]))
-        db.commit()
+            Texte.insert(id=uid, nature=row[0], **{key: row[1]}).execute()
+        TexteVersion.update(texte_id=uid) \
+            .where(TexteVersion.texte_id.in_(ids)).execute()
         total += len(ids)
         factorized += 1
     print('factorized %i duplicates into %i uniques based on %s' % (total, factorized, key))
