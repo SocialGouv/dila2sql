@@ -8,6 +8,7 @@ import json
 import os
 import re
 from collections import defaultdict
+from multiprocessing import Pool
 
 import libarchive
 from lxml import etree
@@ -184,36 +185,15 @@ def suppress(base, db, liste_suppression):
           json.dumps(counts, indent=4, sort_keys=True))
 
 
-def process_file(
-    xml, entry, base, unknown_folders, counts,
-    liste_suppression, calipsos, process_links, skipped
-):
-    path = entry.pathname
-    if path[-1] == '/':
-        return
-    parts = path.split('/')
-    if parts[-1] == 'liste_suppression_'+base.lower()+'.dat':
-        liste_suppression += b''.join(entry.get_blocks()).decode('ascii').split()
-        return
-    if parts[1] == base.lower():
-        path = path[len(parts[0])+1:]
-        parts = parts[1:]
-    if (
-        parts[0] not in ['legi', 'jorf', 'kali'] or
-        (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or
-        (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or
-        (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur'])
-    ):
-        # https://github.com/Legilibre/legi.py/issues/23
-        unknown_folders[parts[2]] += 1
-        return
-    dossier = parts[3] if base == 'LEGI' else None
-    text_cid = parts[11] if base == 'LEGI' else None
-    text_id = parts[-1][:-4]
-    mtime = entry.mtime
+def process_file(args):
+    xml_blob, mtime, base, table, dossier, text_cid, text_id, process_links = args
+    # TODO
+    skipped = 0
+    counts = defaultdict(lambda: 0)
 
     # Read the file
-    xml.feed(b''.join(entry.get_blocks()))
+    xml = etree.XMLParser(remove_blank_text=True)
+    xml.feed(xml_blob)
     root = xml.close()
     tag = root.tag
     meta = root.find('META')
@@ -234,10 +214,6 @@ def process_file(
 
     # Skip the file if it hasn't changed, store it if it's a duplicate
     duplicate = False
-    table = get_table(parts)
-    if table is None:
-        unknown_folders[text_id] += 1
-        return
 
     if table == 'conteneurs':
         prev_rows = Conteneur \
@@ -341,7 +317,9 @@ def process_file(
         scrape_tags(attrs, meta_article, META_ARTICLE_TAGS)
         scrape_tags(attrs, root, ARTICLE_TAGS, unwrap=True)
         current_calipsos = [innerHTML(c) for c in meta_article.findall('CALIPSOS/CALIPSO')]
-        calipsos |= set(current_calipsos)
+        for calipso in current_calipsos:
+            Calipso.insert(id=calipso).on_conflict_ignore().execute()
+        counts['insert into calipsos'] += len(current_calipsos)
         articles_calipsos += [
             {'article_id': article_id, 'calipso_id': c} for c in current_calipsos
         ]
@@ -571,25 +549,62 @@ def process_file(
     counts['insert into articles_calipsos'] += len(articles_calipsos)
 
 
+# from https://stackoverflow.com/a/752562
+def split_list(alist, wanted_parts=1):
+    length = len(alist)
+    return [ alist[i*length // wanted_parts: (i+1)*length // wanted_parts]
+             for i in range(wanted_parts) ]
+
+
+def process_files(sublist):
+    print("process_files with sublist %s items" % len(sublist))
+    for args in sublist:
+        process_file(*args)
+
+
 def process_archive(db, archive_path, process_links=True):
     counts = defaultdict(lambda: 0)
     base = DBMeta.get(DBMeta.key == 'base').value or 'LEGI'
     skipped = 0
     unknown_folders = defaultdict(lambda: 0)
     liste_suppression = []
-    calipsos = set()
-    xml = etree.XMLParser(remove_blank_text=True)
+    args = []
     with libarchive.file_reader(archive_path) as archive:
         for entry in progressbar(archive):
-            process_file(
-                xml, entry, base, unknown_folders, counts,
-                liste_suppression, calipsos, process_links, skipped
-            )
-            db.commit()
+            path = entry.pathname
+            parts = path.split('/')
+            table = get_table(parts)
+            if path[-1] == '/':
+                continue
+            if parts[-1] == 'liste_suppression_'+base.lower()+'.dat':
+                liste_suppression += b''.join(entry.get_blocks()).decode('ascii').split()
+                continue
+            if (
+                parts[0] not in ['legi', 'jorf', 'kali'] or
+                (parts[0] == 'legi' and not parts[2].startswith('code_et_TNC_')) or
+                (parts[0] == 'jorf' and parts[2] not in ['article', 'section_ta', 'texte']) or
+                (parts[0] == 'kali' and parts[2] not in ['article', 'section_ta', 'texte', 'conteneur'])
+            ):
+                # https://github.com/Legilibre/legi.py/issues/23
+                unknown_folders[parts[2]] += 1
+                continue
+            if parts[1] == base.lower():
+                path = path[len(parts[0])+1:]
+                parts = parts[1:]
+            dossier = parts[3] if base == 'LEGI' else None
+            text_cid = parts[11] if base == 'LEGI' else None
+            text_id = parts[-1][:-4]
+            if table is None:
+                unknown_folders[text_id] += 1
+                continue
+            xml_blob = b''.join(entry.get_blocks())
+            mtime = entry.mtime
+            args.append((xml_blob, mtime, base, table, dossier, text_cid, text_id, process_links))
 
-    for calipso in calipsos:
-        Calipso.insert(id=calipso).on_conflict_ignore().execute()
-    counts['insert into calipsos'] += len(calipsos)
+    pool = Pool(processes=4)
+    print("starting parallel work ...")
+    pool.map(process_file, args)
+    print("parallel work done !")
 
     print(
         "made %s changes in the database:" % sum(counts.values()),
