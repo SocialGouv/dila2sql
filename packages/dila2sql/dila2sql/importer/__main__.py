@@ -9,6 +9,9 @@ import json
 import os
 import re
 from collections import defaultdict
+from multiprocessing import Pool
+import concurrent.futures
+import functools
 
 import libarchive
 from .utils import get_table, get_dossier
@@ -20,9 +23,8 @@ from dila2sql.models import db_proxy, DBMeta, TexteVersionBrute, Lien
 
 
 def process_archive(db, archive_path, process_links=True):
-    counts = defaultdict(lambda: 0)
+
     base = DBMeta.get(DBMeta.key == 'base').value or 'LEGI'
-    skipped = 0
     unknown_folders = defaultdict(lambda: 0)
     liste_suppression = []
     args = []
@@ -58,12 +60,29 @@ def process_archive(db, archive_path, process_links=True):
             mtime = entry.mtime
             args.append((xml_blob, mtime, base, table, dossier, text_cid, text_id, process_links))
 
-    for arg_list in progressbar(args):
-        xml_counts, xml_skipped = process_xml(*arg_list)
-        db.commit()
+    def cb_template(res, skipped, counts, pbar):
+        xml_counts, xml_skipped = res
         skipped += xml_skipped
         for key, count in xml_counts.items():
             counts[key] += count
+        db.commit()
+        pbar.update(1)
+
+    pbar = progressbar(args)
+    counts = defaultdict(lambda: 0)
+    skipped = 0
+    cb = functools.partial(cb_template, skipped=skipped, counts=counts, pbar=pbar)
+
+    def error_cb(e):
+        raise e
+
+    print("enqueuing process_xml tasks ...")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(process_xml, *arg_list) for arg_list in args]
+        print("waiting for tasks completion ...")
+        for future in concurrent.futures.as_completed(futures):
+            cb(future.result())
+        pbar.close()
 
     print(
         "made %s changes in the database:" % sum(counts.values()),
