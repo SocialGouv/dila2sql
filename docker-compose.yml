@@ -8,6 +8,7 @@ services:
       POSTGRES_PASSWORD: dila2sql
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - "$PWD/postgresql.conf:/var/lib/postgresql/data/postgresql.conf"
     ports:
       - "5442:5432"  # just for external
   api:
