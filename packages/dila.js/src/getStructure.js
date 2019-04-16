@@ -99,7 +99,7 @@ UNION ALL(
     hierarchie.position,
     hierarchie.etat,
     COALESCE(hierarchie.num, articles.num, 'inconnu')
-    ${includeCalipsos ? ", NULL AS calipsos" : ""}
+    ${includeCalipsos ? ", string_agg(articles_calipsos.calipso_id, ',') AS calipsos" : ""}
   FROM hierarchie
   LEFT JOIN articles ON articles.id = hierarchie.element
   ${

@@ -5,7 +5,7 @@ const { JSONlog } = require("../src/utils");
 dila
   .getSommaireConteneur({
     id: "KALICONT000005635807",
-    date: "2019-01-01",
+    date: "2019-05-01",
     includeArticles: true,
     includeCalipsos: true
   })
