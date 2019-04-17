@@ -1,10 +1,10 @@
 const knexRequire = require("knex");
 
-const defaultKnexConfig = require("./knexfile");
+const { getDefaultConfig } = require("./knexfile");
 
 const dila = (knexConfig = {}) => {
   const knex = knexRequire({
-    ...defaultKnexConfig,
+    ...getDefaultConfig(),
     ...knexConfig
   });
 

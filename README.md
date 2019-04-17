@@ -31,7 +31,28 @@ docker-compose run dila2sql python -m dila2sql.importer --base KALI --raw postgr
 
 Ce processus peut être décliné pour les bases LEGI ou JORF.
 
+## Développer sans Docker
+
+À la racine du projet, lancez `yarn install`. Puis :
+
+```sh
+cd packages/api
+yarn dev
+```
+
+`yarn` fera alors le lien entre les différents packages locaux : principalement l'API qui utilise le package `dila.js`.
+Les modifications que vous ferez en local sur le package de l'API ou le package `dila.js` seront automatiquement prises en compte grâce à `nodemon` qui redémarre le serveur lors d'un changement de fichier.
+
+Vous pouvez aussi vous développer indépendamment sur `dila.js` en vous plaçant dans `packages/dila.js` et en lançant les exemples ou les tests :
+
+```sh
+cd packages/dila.js
+DB_URL=postgresql://localhost/kali node examples/getSommaireConteneur.js
+```
+
 ## Développer avec Docker
+
+⚠️ Il est conseillé de développer sans Docker pour plus de simplicité et avoir un live reload du code simple.
 
 Lancez les commandes en montant le code local vers le chemin du code applicatif dans le container pour utiliser le code local plutôt que celui de l'image buildée.
 

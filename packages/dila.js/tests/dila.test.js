@@ -1,9 +1,9 @@
 //const { toMatchDiffSnapshot } = require("snapshot-diff");
 
 const Dila = require("../src");
-const knexConfig = require("../src/knexfile");
+const { getTestConfig } = require("../src/knexfile");
 
-const dila = new Dila(knexConfig.test);
+const dila = new Dila(getTestConfig());
 
 afterAll(() => {
   dila.close();
@@ -12,8 +12,6 @@ afterAll(() => {
 // medailles LEGITEXT000006070666
 // travail LEGITEXT000006072050
 // PI LEGITEXT000006069414
-
-const CODE_TEST = "LEGITEXT000006070666";
 
 /*
  code/xxx                       OK

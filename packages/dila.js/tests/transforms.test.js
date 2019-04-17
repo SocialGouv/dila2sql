@@ -1,9 +1,9 @@
 const Dila = require("../src");
 const markdown = require("../src/markdown");
 const html = require("../src/html");
-const knexConfig = require("../src/knexfile");
+const { getTestConfig } = require("../src/knexfile");
 
-const dila = new Dila(knexConfig.test);
+const dila = new Dila(getTestConfig());
 
 afterAll(() => {
   dila.close();

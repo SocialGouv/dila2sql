@@ -62,13 +62,15 @@ const cleanData = (
   titres = ["titre", "titrefull", "nota", "commentaire", "bloc_textuel"]
 ) =>
   (obj && {
-    ...Object.keys(obj).reduce(
-      (o, k) => ({
-        ...o,
-        [k]: titres.indexOf(k) > -1 ? cleanTitle(obj[k]) : obj[k]
-      }),
-      {}
-    )
+    ...Object.keys(obj)
+      .filter(key => obj.type == "text" || !["date_texte", "nature", "origine_publi"].includes(key))
+      .reduce(
+        (o, k) => ({
+          ...o,
+          [k]: titres.indexOf(k) > -1 ? cleanTitle(obj[k]) : obj[k]
+        }),
+        {}
+      )
   }) ||
   {};
 
