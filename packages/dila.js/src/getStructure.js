@@ -60,7 +60,10 @@ SELECT
   tetiers.titre_tm as titre,
   hierarchie.position,
   hierarchie.etat,
-  hierarchie.num
+  hierarchie.num,
+  NULL AS nature,
+  NULL AS date_texte,
+  NULL AS origine_publi
   ${includeCalipsos ? ", NULL AS calipsos" : ""}
 FROM hierarchie
 LEFT JOIN tetiers ON tetiers.id = hierarchie.element
@@ -72,7 +75,10 @@ UNION ALL(
     textes_versions.titre AS titre,
     hierarchie.position,
     hierarchie.etat,
-    NULL AS num
+    NULL AS num,
+    textes_versions.nature AS nature,
+    textes_versions.date_texte AS date_texte,
+    textes_versions.origine_publi AS origine_publi
     ${includeCalipsos ? ", NULL AS calipsos" : ""}
   FROM hierarchie
   LEFT JOIN textes_versions ON textes_versions.id = hierarchie.element
@@ -85,7 +91,10 @@ UNION ALL(
     sections.titre_ta AS titre,
     hierarchie.position,
     hierarchie.etat,
-    NULL AS num
+    NULL AS num,
+    NULL AS nature,
+    NULL AS date_texte,
+    NULL AS origine_publi
     ${includeCalipsos ? ", NULL AS calipsos" : ""}
   FROM hierarchie
   LEFT JOIN sections ON sections.id = hierarchie.element
@@ -98,7 +107,10 @@ UNION ALL(
     CONCAT('Article ', COALESCE(hierarchie.num, articles.num), ' ', articles.titre) AS titre,
     hierarchie.position,
     hierarchie.etat,
-    COALESCE(hierarchie.num, articles.num, 'inconnu')
+    COALESCE(hierarchie.num, articles.num, 'inconnu'),
+    NULL AS nature,
+    NULL AS date_texte,
+    NULL AS origine_publi
     ${includeCalipsos ? ", string_agg(articles_calipsos.calipso_id, ',') AS calipsos" : ""}
   FROM hierarchie
   LEFT JOIN articles ON articles.id = hierarchie.element
@@ -123,14 +135,6 @@ UNION ALL(
 const getRowsIn = (knex, table, ids, key = "id") => knex.from(table).whereIn(key, ids);
 const reformatRows = row => ({ ...row, titre: row.titre_ta || row.titre_tm || row.titre });
 
-const getInitialCondition = (parentId, section) => {
-  if (section) {
-    return `sommaires.element='${section}'`;
-  } else if (parentId) {
-    return `sommaires.parent='${parentId}'`;
-  }
-};
-
 const itemTypeToTable = itemType => (itemType == "texte" ? "textes_versions" : `${itemType}s`);
 
 // get flat rows with the articles/sections for given section/date
@@ -140,7 +144,7 @@ const getRawStructure = async ({ knex, parentId, section, date, maxDepth = 0, ..
       date,
       parentId,
       maxDepth,
-      initialCondition: getInitialCondition(parentId, section),
+      initialCondition: `sommaires.parent='${parentId}'`,
       ...extraParams
     })
   );
