@@ -1,18 +1,18 @@
 # legi.js [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-[![npm](https://img.shields.io/npm/v/legi.svg)](https://www.npmjs.com/package/legi)
-![license](https://img.shields.io/npm/l/legi.svg)
-[![github-issues](https://img.shields.io/github/issues/revolunet/legi.js.svg)](https://github.com/revolunet/legi.js/issues)
+[![npm](https://img.shields.io/npm/v/legi.svg)](https://www.npmjs.com/package/dila)
+![license](https://img.shields.io/npm/l/dila.svg)
+[![github-issues](https://img.shields.io/github/issues/revolunet/legi.js.svg)](https://github.com/SocialGouv/dila2sql/issues)
 
-[![nodei.co](https://nodei.co/npm/legi.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/legi)
+[![nodei.co](https://nodei.co/npm/legi.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/dila)
 
-Une API NodeJS pour requêter les textes de loi bruts issus d'une base [legi.py](https://github.com/Legilibre/legi.py)
+Une API NodeJS pour requêter les textes de loi bruts issus d'une base [dila2sql](https://github.com/SocialGouv/dila2sql)
 
-Utilise [knex](https://github.com/tgriesser/knex/) pour exploiter les données d'une base PostgreSQL avec [legi-postgres](https://github.com/Legilibre/legi-postgres) et le standard [unist](https://github.com/syntax-tree/unist) pour représenter les textes sous forme d'arbre, de HTML, ou de markdown.
+Utilise [knex](https://github.com/tgriesser/knex/) pour exploiter les données d'une base et le standard [unist](https://github.com/syntax-tree/unist) pour représenter les textes sous forme d'arbre, de HTML, ou de markdown.
 
-Par défaut l'API utilisateur utilise un serveur de dev public pour fournir les textes.
+Par défaut l'API utilisateur utilise une base de données publique pour fournir les textes.
 
-Vous pouvez utiliser votre propre base de données en montant votre serveur PostgreSQL avec [legi-postgres](https://github.com/legilibre/legi-postgres)
+Vous pouvez utiliser votre propre base de données en montant votre base de données PostgreSQL avec [dila2sql](https://github.com/SocialGouv/dila2sql).
 
 ## Install
 
@@ -71,20 +71,13 @@ const legi = new Dila({
 
 Plus d'exemples dans [./examples](./examples)
 
-### A propos
+## Run Tests
 
-- [legi.py](https://github.com/Legilibre/legi.py) est un module python qui génère une base sqlite à partir de la base LEGI, normalise et consolide les données.
-
-- [legi-postgres](https://github.com/Legilibre/legi-postgres) convertit cette base dans une base PostgreSQL.
-
-- [legi.js](https://github.com/revolunet/legi.js) permet d'interroger cette base avec une API JavaScript.
+```sh
+jest
+```
 
 ## Todo
 
 - gestion dates/versions
 - gestion textes type JORF, decrets...
-
-### Related
-
-- https://github.com/Legilibre/legi.py
-- https://github.com/Legilibre/Archeo-Lex

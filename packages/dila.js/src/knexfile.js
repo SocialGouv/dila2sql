@@ -29,11 +29,7 @@ const getDefaultConfig = () => {
 };
 
 const getTestConfig = () => {
-  if (process && process.env && process.env.TEST_DB_URL) {
-    return parseDbUrl(process.env.TEST_DB_URL);
-  } else {
-    return parseDbUrl("postgresql://localhost/dila2sql_test");
-  }
+  return parseDbUrl("postgresql://localhost/dila2sql_test");
 };
 
 module.exports = { getDefaultConfig, getTestConfig };
