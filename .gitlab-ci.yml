@@ -137,19 +137,17 @@ Publish docker image dila2sql api:
   allow_failure: false
 
 .deploy_dila2sql: &deploy_dila2sql
-  before_script:
-  - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
   script:
+  - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
   - kubectl apply -f k8s/dila2sql/importer-dila2sql.yml
 
 .deploy_dila2api: &deploy_dila2sql_api
   variables:
     DILA2SQL_API_DB_PORT: $API_PORT
-  before_script:
+  script:
   - envsubst < k8s/api/deployment.yml > k8s/api/deployment-api.yml
   - envsubst < k8s/api/ingress.yml > k8s/api/ingress-api.yml
   - envsubst < k8s/api/service.yml > k8s/api/service-api.yml
-  script:
   - kubectl apply -f k8s/api/deployment-api.yml
   - kubectl apply -f k8s/api/ingress-api.yml
   - kubectl apply -f k8s/api/service-api.yml
@@ -158,10 +156,9 @@ Publish docker image dila2sql api:
 
 Deploy Postgres to dev environment:
   <<: *deploy_stage
-  before_script:
+  script:
   - envsubst < k8s/postgres/deployment.yml > k8s/postgres/deployment-postgres.yml
   - envsubst < k8s/postgres/service.yml > k8s/postgres/service-postgres.yml
-  script:
   - kubectl apply -f k8s/postgres/deployment-postgres.yml
   - kubectl apply -f k8s/postgres/service-postgres.yml
   environment:
