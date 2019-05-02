@@ -209,9 +209,9 @@ Deploy dila2sql api to prod environment:
 
 .send_url_stage: &send_url_stage
   stage: "Send Url"
-    image:
-      name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-      entrypoint: [""]
+  image:
+    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
+    entrypoint: [""]
   before_script:
   - export DEPLOY_ID=$(cat github_deploy_id)
   - envsubst < k8s/scripts/send-url.sh > k8s/scripts/send-url-to-github.sh
