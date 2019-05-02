@@ -94,16 +94,23 @@ run-tests-dila2sql:
   - docker run -t $CI_IMAGE_DILA2SQL tox
 
 ###########################################
-###           PUBLISH IMAGES            ###
+###       PUBLISH DOCKER IMAGES         ###
 ###########################################
 
-publish-docker-image-dila2sql:
+#
+
+.publish_stage: &publish_stage
   stage: "Publish Docker images"
   image: docker:$DOCKER_VERSION
   services:
   - docker:dind
   before_script:
   - docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN
+
+#
+
+Publish docker image dila2sql:
+  <<: *publish_stage
   script:
   - docker pull $CI_IMAGE_DILA2SQL || true
   - >-
@@ -113,13 +120,8 @@ publish-docker-image-dila2sql:
     packages/dila2sql
   - docker push $PUBLIC_IMAGE_DILA2SQL
 
-publish-docker-image-dila2sql-api:
-  stage: "Publish Docker images"
-  image: docker:$DOCKER_VERSION
-  services:
-  - docker:dind
-  before_script:
-  - docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN
+Publish docker image dila2sql api:
+  <<: *publish_stage
   script:
   - docker pull $PUBLIC_IMAGE_DILA2SQL_API || true
   - >-
