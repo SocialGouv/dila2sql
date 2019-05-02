@@ -24,6 +24,10 @@ stages:
   - "Deploy To Dev Environment"
   - "Deploy To Prod Environment"
 
+###########################################
+###               PREPARE               ###
+###########################################
+
 build-ci-docker-image-dila2sql:
   stage: "Build CI Docker images"
   image: docker:$DOCKER_VERSION
@@ -40,6 +44,10 @@ build-ci-docker-image-dila2sql:
     packages/dila2sql
   - docker push $CI_IMAGE_DILA2SQL
 
+###########################################
+###              RUN TESTS              ###
+###########################################
+
 run-tests-dila2sql:
   stage: "Run Tests"
   image: docker:$DOCKER_VERSION
@@ -47,6 +55,10 @@ run-tests-dila2sql:
   - docker:dind
   script:
   - docker run -t $CI_IMAGE_DILA2SQL tox
+
+###########################################
+###           PUBLISH IMAGES            ###
+###########################################
 
 publish-docker-image-dila2sql:
   stage: "Publish Docker images"
@@ -79,6 +91,10 @@ publish-docker-image-dila2sql-api:
     -t $PUBLIC_IMAGE_DILA2SQL_API
     packages/api
   - docker push $PUBLIC_IMAGE_DILA2SQL_API
+
+############################################
+###  DEPLOY DILA2SQL TO K8S DEV CLUSTER  ###
+############################################
 
 deploy-postgres-dev:
   stage: "Deploy To Dev Environment"
