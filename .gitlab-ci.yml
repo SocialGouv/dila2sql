@@ -1,5 +1,4 @@
 ---
-
 image: docker:latest
 
 variables:
@@ -24,20 +23,39 @@ stages:
   - "Deploy"
   - "Send Url"
 
-
-
-
 ###########################################
 ###               PREPARE               ###
 ###########################################
 
-build-ci-docker-image-dila2sql:
-  stage: "Prepare"
+
+#
+
+.build_image_stage: &build_image_stage
   image: docker:$DOCKER_VERSION
   services:
   - docker:dind
   before_script:
   - docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN
+
+
+.save_github_deploy_id_stage: &save_github_deploy_id_stage
+  stage: "Prepare"
+  image:
+    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
+    entrypoint: [""]
+  before_script:
+  - envsubst < k8s/scripts/get-deploy-id.sh > k8s/scripts/get-github-deploy-id.sh
+  script:
+  - sh k8s/scripts/get-github-deploy-id.sh
+  artifacts:
+    paths:
+    - github_deploy_id
+
+#
+
+build-ci-docker-image-dila2sql:
+  <<: *build_image_stage
+  stage: "Prepare"
   script:
   - docker pull $PREVIOUS_CI_IMAGE_DILA2SQL || true
   - >-
@@ -47,39 +65,19 @@ build-ci-docker-image-dila2sql:
     packages/dila2sql
   - docker push $CI_IMAGE_DILA2SQL
 
-prepare-deploy-id:
-  stage: "Prepare"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  before_script:
-  - envsubst < k8s/scripts/get-deploy-id.sh > k8s/scripts/get-github-deploy-id.sh
-  script:
-  - sh k8s/scripts/get-github-deploy-id.sh
+Save dev github_deploy_id in artifact:
+  <<: *save_github_deploy_id_stage
   environment:
     name: dev.factory
   except:
   - ops/deploy-k8s
-  artifacts:
-    paths:
-    - github_deploy_id
 
-prepare-deploy-id-prod:
-  stage: "Prepare"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  before_script:
-  - envsubst < k8s/scripts/get-deploy-id.sh > k8s/scripts/get-github-deploy-id.sh
-  script:
-  - sh k8s/scripts/get-github-deploy-id.sh
+Save prod github_deploy_id in artifact:
+  <<: *save_github_deploy_id_stage
   environment:
     name: incubateur
   only:
   - ops/deploy-k8s
-  artifacts:
-    paths:
-    - github_deploy_id
 
 ###########################################
 ###              RUN TESTS              ###
@@ -97,20 +95,9 @@ run-tests-dila2sql:
 ###       PUBLISH DOCKER IMAGES         ###
 ###########################################
 
-#
-
-.publish_stage: &publish_stage
-  stage: "Publish Docker images"
-  image: docker:$DOCKER_VERSION
-  services:
-  - docker:dind
-  before_script:
-  - docker login $CI_REGISTRY -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN
-
-#
-
 Publish docker image dila2sql:
-  <<: *publish_stage
+  <<: *build_image_stage
+  stage: "Publish Docker images"
   script:
   - docker pull $CI_IMAGE_DILA2SQL || true
   - >-
@@ -121,7 +108,8 @@ Publish docker image dila2sql:
   - docker push $PUBLIC_IMAGE_DILA2SQL
 
 Publish docker image dila2sql api:
-  <<: *publish_stage
+  <<: *build_image_stage
+  stage: "Publish Docker images"
   script:
   - docker pull $PUBLIC_IMAGE_DILA2SQL_API || true
   - >-
