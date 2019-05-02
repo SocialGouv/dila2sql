@@ -8,7 +8,7 @@ metadata:
     branch: dila2sql
 spec:
   rules:
-  - host: dila2sql-api.${ENVIRONMENT}.factory.social.gouv.fr
+  - host: dila2sql-api.${ENVIRONMENT}.social.gouv.fr
     http:
       paths:
       - path: /
