@@ -17,7 +17,9 @@
     "verbose": true,
     "collectCoverage": false,
     "snapshotSerializers": [],
-    "testURL": "http://localhost/"
+    "testURL": "http://localhost/",
+    "globalSetup": "./tests/globalSetup.js",
+    "globalTeardown": "./tests/globalTeardown.js"
   },
   "env": {
     "jest": true

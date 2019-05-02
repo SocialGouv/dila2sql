@@ -16,9 +16,7 @@ services:
       dockerfile: ./Dockerfile
     image: dila2sql-api
     environment:
-      DB_HOST: db
-      DB_USER: dila2sql
-      DB_PASSWORD: dila2sql
+      DB_URL: postgresql://dila2sql:dila2sql@db/kali
     ports:
       - "3001:8080"
   dila2sql:

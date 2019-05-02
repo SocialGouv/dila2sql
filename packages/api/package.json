@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.16.3",
     "dila": "^2.2.0",
+    "express": "^4.16.3",
     "memoizee": "^0.4.14",
     "unist-util-find": "^1.0.1",
     "unist-util-map": "^1.0.4",
@@ -24,7 +24,7 @@
   "main": "./src",
   "scripts": {
     "start": "node ./src",
-    "dev": "DEBUG=express:* nodemon --watch . --watch ../dila.js ./src",
+    "dev": "DEBUG=express:* nodemon --watch ./../dila.js --watch . --watch ./src",
     "swagger": "swagger-codegen generate -i ./swagger.yml -l html2 -o ./docs/"
   },
   "devDependencies": {
