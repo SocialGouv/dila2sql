@@ -27,7 +27,6 @@ stages:
 ###               PREPARE               ###
 ###########################################
 
-
 #
 
 .build_image_stage: &build_image_stage
@@ -70,14 +69,14 @@ Save dev github_deploy_id in artifact:
   environment:
     name: dev.factory
   except:
-  - ops/deploy-k8s
+  - master
 
 Save prod github_deploy_id in artifact:
   <<: *save_github_deploy_id_stage
   environment:
     name: incubateur
   only:
-  - ops/deploy-k8s
+  - master
 
 ###########################################
 ###              RUN TESTS              ###
@@ -164,7 +163,7 @@ Deploy Postgres to dev environment:
   environment:
     name: dev.factory
   except:
-  - ops/deploy-k8s
+  - master
 
 Deploy dila2sql to dev environment:
   <<: *deploy_stage
@@ -172,7 +171,7 @@ Deploy dila2sql to dev environment:
   environment:
     name: dev.factory
   except:
-  - ops/deploy-k8s
+  - master
 
 Deploy dila2sql api to dev environment:
   <<: *deploy_stage
@@ -180,7 +179,7 @@ Deploy dila2sql api to dev environment:
   environment:
     name: dev.factory
   except:
-  - ops/deploy-k8s
+  - master
 
 Deploy dila2sql to prod environment:
   <<: *deploy_stage
@@ -188,7 +187,7 @@ Deploy dila2sql to prod environment:
   environment:
     name: incubateur
   only:
-  - ops/deploy-k8s
+  - master
 
 Deploy dila2sql api to prod environment:
   <<: *deploy_stage
@@ -199,7 +198,7 @@ Deploy dila2sql api to prod environment:
   environment:
     name: incubateur
   only:
-  - ops/deploy-k8s
+  - master
 
 ###########################################
 ###         SEND URL TO GITHUB          ###
@@ -227,7 +226,7 @@ Send dev environment url to github:
   environment:
     name: dev.factory
   except:
-  - ops/deploy-k8s
+  - master
 
 Send prod environment url to github:
   <<: *send_url_stage
@@ -236,4 +235,4 @@ Send prod environment url to github:
   environment:
     name: incubateur
   only:
-  - ops/deploy-k8s
+  - master
