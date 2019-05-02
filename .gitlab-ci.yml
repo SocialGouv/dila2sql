@@ -21,9 +21,11 @@ stages:
   - "Prepare"
   - "Run Tests"
   - "Publish Docker images"
-  - "Deploy To Dev Environment"
-  - "Deploy To Prod Environment"
+  - "Deploy"
   - "Send Url"
+
+
+
 
 ###########################################
 ###               PREPARE               ###
@@ -128,18 +130,43 @@ publish-docker-image-dila2sql-api:
   - docker push $PUBLIC_IMAGE_DILA2SQL_API
 
 ############################################
-###  DEPLOY DILA2SQL TO K8S DEV CLUSTER  ###
+###                 DEPLOY               ###
 ############################################
 
-deploy-postgres-dev:
-  stage: "Deploy To Dev Environment"
+#
+
+.deploy_stage: &deploy_stage
+  stage: "Deploy"
   image:
     name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
     entrypoint: [""]
   variables:
     ENVIRONMENT: $CI_ENVIRONMENT_NAME
+  allow_failure: false
+
+.deploy_dila2sql: &deploy_dila2sql
   before_script:
-  - /apps/create-kubeconfig.sh
+  - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
+  script:
+  - kubectl apply -f k8s/dila2sql/importer-dila2sql.yml
+
+.deploy_dila2api: &deploy_dila2sql_api
+  variables:
+    DILA2SQL_API_DB_PORT: $API_PORT
+  before_script:
+  - envsubst < k8s/api/deployment.yml > k8s/api/deployment-api.yml
+  - envsubst < k8s/api/ingress.yml > k8s/api/ingress-api.yml
+  - envsubst < k8s/api/service.yml > k8s/api/service-api.yml
+  script:
+  - kubectl apply -f k8s/api/deployment-api.yml
+  - kubectl apply -f k8s/api/ingress-api.yml
+  - kubectl apply -f k8s/api/service-api.yml
+
+#
+
+Deploy Postgres to dev environment:
+  <<: *deploy_stage
+  before_script:
   - envsubst < k8s/postgres/deployment.yml > k8s/postgres/deployment-postgres.yml
   - envsubst < k8s/postgres/service.yml > k8s/postgres/service-postgres.yml
   script:
@@ -149,93 +176,38 @@ deploy-postgres-dev:
     name: dev.factory
   except:
   - ops/deploy-k8s
-  allow_failure: false
 
-deploy-dila2sql-dev:
-  stage: "Deploy To Dev Environment"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  variables:
-    ENVIRONMENT: $CI_ENVIRONMENT_NAME
-  before_script:
-  - /apps/create-kubeconfig.sh
-  - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
-  script:
-  - kubectl apply -f k8s/dila2sql/importer-dila2sql.yml
+Deploy dila2sql to dev environment:
+  <<: *deploy_stage
+  <<: *deploy_dila2sql
   environment:
     name: dev.factory
   except:
   - ops/deploy-k8s
-  allow_failure: false
 
-deploy-api-dev:
-  stage: "Deploy To Dev Environment"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  variables:
-    ENVIRONMENT: $CI_ENVIRONMENT_NAME
-    DILA2SQL_API_DB_PORT: $API_PORT
-  before_script:
-  - /apps/create-kubeconfig.sh
-  - envsubst < k8s/api/deployment.yml > k8s/api/deployment-api.yml
-  - envsubst < k8s/api/ingress.yml > k8s/api/ingress-api.yml
-  - envsubst < k8s/api/service.yml > k8s/api/service-api.yml
-  script:
-  - kubectl apply -f k8s/api/deployment-api.yml
-  - kubectl apply -f k8s/api/ingress-api.yml
-  - kubectl apply -f k8s/api/service-api.yml
+Deploy dila2sql api to dev environment:
+  <<: *deploy_stage
+  <<: *deploy_dila2sql_api
   environment:
     name: dev.factory
   except:
   - ops/deploy-k8s
-  allow_failure: false
 
-###########################################
-### DEPLOY DILA2SQL TO K8S PROD CLUSTER ###
-###########################################
-
-deploy-dila2sql-prod:
-  stage: "Deploy To Prod Environment"
-  image:
-   name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-   entrypoint: [""]
-  variables:
-   ENVIRONMENT: $CI_ENVIRONMENT_NAME
-  before_script:
-  - /apps/create-kubeconfig.sh
-  - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
-  script:
-  - kubectl apply -f k8s/dila2sql/importer-dila2sql.yml
-  environment:
-   name: incubateur
-  only:
-  - ops/deploy-k8s
-  allow_failure: false
-
-deploy-api-prod:
-  stage: "Deploy To Prod Environment"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  variables:
-    ENVIRONMENT: $CI_ENVIRONMENT_NAME
-    DILA2SQL_API_DB_PORT: $API_PORT
-  before_script:
-  - /apps/create-kubeconfig.sh
-  - envsubst < k8s/api/deployment.yml > k8s/api/deployment-api.yml
-  - envsubst < k8s/api/ingress.yml > k8s/api/ingress-api.yml
-  - envsubst < k8s/api/service.yml > k8s/api/service-api.yml
-  script:
-  - kubectl apply -f k8s/api/deployment-api.yml
-  - kubectl apply -f k8s/api/ingress-api.yml
-  - kubectl apply -f k8s/api/service-api.yml
+Deploy dila2sql to prod environment:
+  <<: *deploy_stage
+  <<: *deploy_dila2sql
   environment:
     name: incubateur
   only:
   - ops/deploy-k8s
-  allow_failure: false
+
+Deploy dila2sql api to prod environment:
+  <<: *deploy_stage
+  <<: *deploy_dila2sql_api
+  environment:
+    name: incubateur
+  only:
+  - ops/deploy-k8s
 
 ###########################################
 ###         SEND URL TO GITHUB          ###
