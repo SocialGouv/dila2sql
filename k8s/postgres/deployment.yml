@@ -21,7 +21,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: dila2sql-secret
-              key: DB_HOST
+              key: DB_NAME
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
