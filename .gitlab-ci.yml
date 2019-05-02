@@ -215,35 +215,34 @@ Deploy dila2sql api to prod environment:
 ###         SEND URL TO GITHUB          ###
 ###########################################
 
-send-url:
+#
+
+.send_url_stage: &send_url_stage
   stage: "Send Url"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
-  variables:
-    URL: http://dila2sql-api.$CI_ENVIRONMENT_NAME.social.gouv.fr/
+    image:
+      name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
+      entrypoint: [""]
   before_script:
   - export DEPLOY_ID=$(cat github_deploy_id)
   - envsubst < k8s/scripts/send-url.sh > k8s/scripts/send-url-to-github.sh
   script:
   - sh k8s/scripts/send-url-to-github.sh $CI_COMMIT_REF_NAME
+
+#
+
+Send dev environment url to github:
+  <<: *send_url_stage
+  variables:
+    URL: http://dila2sql-api.$CI_ENVIRONMENT_NAME.social.gouv.fr/
   environment:
     name: dev.factory
   except:
   - ops/deploy-k8s
 
-send-url-prod:
-  stage: "Send Url"
-  image:
-    name: $CI_REGISTRY/$IMAGE_INFRA_BASE_NAME/docker-kube:latest
-    entrypoint: [""]
+Send prod environment url to github:
+  <<: *send_url_stage
   variables:
     URL: https://dila2sql-api.$CI_ENVIRONMENT_NAME.social.gouv.fr/
-  before_script:
-  - export DEPLOY_ID=$(cat github_deploy_id)
-  - envsubst < k8s/scripts/send-url.sh > k8s/scripts/send-url-to-github.sh
-  script:
-  - sh k8s/scripts/send-url-to-github.sh $CI_COMMIT_REF_NAME
   environment:
     name: incubateur
   only:
