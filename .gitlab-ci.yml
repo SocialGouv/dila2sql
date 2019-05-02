@@ -139,7 +139,7 @@ Publish docker image dila2sql api:
 .deploy_dila2sql: &deploy_dila2sql
   script:
   - envsubst < k8s/dila2sql/importer.yml > k8s/dila2sql/importer-dila2sql.yml
-  - kubectl apply -f k8s/dila2sql/importer-dila2sql.yml
+  - k8s/scripts/check_dilasql_job.sh
 
 .deploy_dila2api: &deploy_dila2sql_api
   variables:
