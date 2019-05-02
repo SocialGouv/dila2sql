@@ -1,0 +1,18 @@
+---
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: dila2sql-crt
+spec:
+  secretName: dila2sql-crt-secret
+  dnsNames:
+  - dila2sql-api.${ENVIRONMENT}.social.gouv.fr
+  acme:
+    config:
+    - http01:
+        ingressClass: nginx
+      domains:
+      - dila2sql-api.${ENVIRONMENT}.social.gouv.fr
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

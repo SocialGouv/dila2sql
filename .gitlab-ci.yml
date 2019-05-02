@@ -193,6 +193,9 @@ Deploy dila2sql to prod environment:
 Deploy dila2sql api to prod environment:
   <<: *deploy_stage
   <<: *deploy_dila2sql_api
+  script:
+  - envsubst < k8s/certificate/certificate.yml > k8s/certificate/certificate-dila2sql.yml
+  - kubectl apply -f k8s/certificate/certificate-dila2sql.yml
   environment:
     name: incubateur
   only:
