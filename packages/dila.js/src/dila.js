@@ -2,7 +2,7 @@ const knexRequire = require("knex");
 
 const { getDefaultConfig } = require("./knexfile");
 
-const dila = (knexConfig = {}) => {
+const dila = (knexConfig = null) => {
   const knex = knexRequire(knexConfig || getDefaultConfig());
 
   // tasty curry
