@@ -9,7 +9,7 @@ variables:
   PREVIOUS_CI_IMAGE_DILA2SQL: "$CI_REGISTRY_IMAGE/dila2sql_ci:$CI_COMMIT_BEFORE_SHA"
   CI_IMAGE_DILA2SQL: "$CI_REGISTRY_IMAGE/dila2sql_ci:$CI_COMMIT_SHA"
   PUBLIC_IMAGE_DILA2SQL: "$CI_REGISTRY_IMAGE/dila2sql:$CI_COMMIT_SHA"
-  PUBLIC_IMAGE_DILA2SQL_API: "$CI_REGISTRY_IMAGE/dila2sql_api:bd7e71be2e908569762acfacb369d085c794b287"
+  PUBLIC_IMAGE_DILA2SQL_API: "$CI_REGISTRY_IMAGE/dila2sql_api:$CI_COMMIT_SHA"
   IMAGE_INFRA_BASE_NAME: "infra/images-docker"
   API_PORT: 8080
   DOCKER_DRIVER: overlay2
@@ -159,9 +159,9 @@ deploy-api-dev:
   - ops/deploy-k8s
   allow_failure: false
 
-##########################################
-### DEPLOY TREMPLIN TO K8S DEV CLUSTER ###
-##########################################
+###########################################
+### DEPLOY DILA2SQL TO K8S PROD CLUSTER ###
+###########################################
 
 deploy-dila2sql-prod:
   stage: "Deploy To Prod Environment"
