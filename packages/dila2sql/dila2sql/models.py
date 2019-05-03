@@ -48,6 +48,8 @@ class Conteneur(BaseModel):
         table_name = "conteneurs"
 
     id = CharField(primary_key=True)
+    texte_de_base = TextField()
+    active = BooleanField()
     titre = TextField()
     etat = TextField()
     nature = TextField()

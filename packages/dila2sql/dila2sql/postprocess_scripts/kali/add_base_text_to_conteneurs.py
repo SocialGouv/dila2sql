@@ -1,41 +1,11 @@
 from dila2sql.utils import connect_db
 from tqdm import tqdm
 from argparse import ArgumentParser
+import datetime
+from dila2sql.models import Conteneur, Tetier, Sommaire
+from peewee import fn
 
-CONTENEURS_SQL = """
-    SELECT id, num
-    FROM conteneurs
-    WHERE nature = 'IDCC' AND active = true;
-"""
-
-TETIERS_SQL = """
-    SELECT id
-    FROM tetiers
-    WHERE titre_tm = 'Texte de base'
-    AND conteneur_id = '%s'
-"""
-
-SOMMAIRES_SQL = """
-    SELECT element
-    FROM sommaires
-    WHERE parent = '%s'
-    AND
-    (
-        sommaires.debut <= '2019-04-16'
-        OR sommaires.debut IS NULL
-    ) AND (
-        sommaires.fin > '2019-04-16'
-        OR sommaires.fin = '2019-04-16'
-        OR sommaires.fin IS NULL
-        OR LEFT(sommaires.etat, 7) = 'VIGUEUR'
-    );
-"""
-
-UPDATE_SQL = """
-    UPDATE conteneurs
-    SET texte_de_base = '%s'
-    WHERE id = '%s'
-"""
+today = datetime.date.today()
 
 
 def add_base_text_column(db):
@@ -47,30 +17,52 @@ def add_base_text_column(db):
 
 def set_base_text_on_conteneurs(db):
     warnings = []
-    conteneurs = list(db.execute_sql(CONTENEURS_SQL))
-    for conteneur_id, conteneur_num in tqdm(conteneurs):
-        tetiers = list(db.execute_sql(TETIERS_SQL % (conteneur_id, )))
-        if len(tetiers) != 1:
+    conteneurs = Conteneur \
+        .select() \
+        .where(Conteneur.nature == 'IDCC') \
+        .where(Conteneur.active == True)
+    for conteneur in tqdm(conteneurs):
+        tetiers = Tetier \
+            .select() \
+            .where(Tetier.titre_tm == 'Texte de base') \
+            .where(Tetier.conteneur_id == conteneur.id)
+        if tetiers.count() != 1:
             warnings.append(
                 "/!\\ %s tetiers 'Texte de base' found for conteneur %s" %
-                (len(tetiers), conteneur_id)
+                (len(tetiers), conteneur.id)
             )
             continue
-        tetier_id = tetiers[0][0]
-        textes_de_base = list(db.execute_sql(SOMMAIRES_SQL % (tetier_id, )))
-        if len(textes_de_base) == 0:
+        tetier_id = tetiers[0].id
+        textes_de_base = Sommaire \
+            .select() \
+            .where(Sommaire.parent == tetier_id) \
+            .where(
+                (
+                    (Sommaire.debut <= today) |
+                    (Sommaire.debut.is_null())) &
+                (
+                    (Sommaire.fin >= today) |
+                    (Sommaire.fin.is_null()) |
+                    (fn.LEFT(Sommaire.etat, 7) == 'VIGUEUR')
+                )
+            )
+        if textes_de_base.count() == 0:
             warnings.append(
-                "/!\\ no textes de bases in sommaires for conteneur %s - tetier %s" %
-                (conteneur_id, tetier_id)
+                "/!\\ no textes de bases in sommaires for conteneur %s "
+                "- tetier %s" %
+                (conteneur.id, tetier_id)
             )
             continue
-        if len(textes_de_base) > 1:
+        if textes_de_base.count() > 1:
             warnings.append(
-                "%s textes de bases in sommaires for conteneur %s - tetier %s, using first" %
-                (len(textes_de_base), conteneur_id, tetier_id)
+                "%s textes de bases in sommaires for conteneur %s - tetier %s"
+                ", using first" %
+                (textes_de_base.count(), conteneur.id, tetier_id)
             )
-        texte_id = textes_de_base[0][0]
-        db.execute_sql(UPDATE_SQL % (texte_id, conteneur_id))
+        texte_id = textes_de_base[0].element
+        Conteneur.update(texte_de_base=texte_id) \
+            .where(Conteneur.id == conteneur.id) \
+            .execute()
     for warning in warnings:
         print(warning)
 
