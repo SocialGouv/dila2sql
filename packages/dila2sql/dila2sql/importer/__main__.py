@@ -12,6 +12,7 @@ from .process_archive import process_archive
 from dila2sql.anomalies import detect_anomalies
 from dila2sql.utils import connect_db, partition
 from dila2sql.models import db_proxy, DBMeta, TexteVersionBrute, Lien
+from dila2sql.postprocess import postprocess
 
 
 def main():
@@ -118,6 +119,8 @@ def main():
             with open(fpath, 'w') as f:
                 n_anomalies = detect_anomalies(db, f)
             print("logged", n_anomalies, "anomalies in", fpath)
+
+    postprocess(db, base)
 
     if not args.raw:
         from .normalize import normalize_text_titles
