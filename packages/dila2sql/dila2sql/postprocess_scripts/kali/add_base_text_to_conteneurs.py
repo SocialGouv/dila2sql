@@ -2,7 +2,7 @@ from dila2sql.utils import connect_db
 from tqdm import tqdm
 from argparse import ArgumentParser
 import datetime
-from dila2sql.models import Conteneur, Tetier, Sommaire
+from dila2sql.models import db_proxy, Conteneur, Tetier, Sommaire
 from peewee import fn
 
 today = datetime.date.today()
@@ -77,4 +77,5 @@ if __name__ == '__main__':
     p.add_argument('db')
     args = p.parse_args()
     db = connect_db(args.db)
+    db_proxy.initialize(db)
     run(db)

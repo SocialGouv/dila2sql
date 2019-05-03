@@ -56,6 +56,7 @@ class Conteneur(BaseModel):
     num = TextField()
     date_publi = DateField()
     mtime = IntegerField()
+    active = BooleanField()
 
 
 class DBMeta(BaseModel):
