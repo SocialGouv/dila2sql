@@ -3,7 +3,7 @@ const getTexteData = (knex, filters) =>
     .clearSelect()
     .clearWhere()
     .clearOrder()
-    .select("cid", "id", "titre", "titrefull", "date_publi")
+    .select()
     .from("textes_versions")
     .where(filters)
     .orderBy("date_publi", "desc")

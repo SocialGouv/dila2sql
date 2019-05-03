@@ -139,15 +139,6 @@ const itemTypeToTable = itemType => (itemType == "texte" ? "textes_versions" : `
 
 // get flat rows with the articles/sections for given section/date
 const getRawStructure = async ({ knex, parentId, section, date, maxDepth = 0, ...extraParams }) =>
-  // console.log(
-  //   getStructureSQL({
-  //     date,
-  //     parentId,
-  //     maxDepth,
-  //     initialCondition: `sommaires.parent='${parentId}'`,
-  //     ...extraParams
-  //   })
-  // ) ||
   knex.raw(
     getStructureSQL({
       date,

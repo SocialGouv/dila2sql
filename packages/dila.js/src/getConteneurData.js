@@ -3,7 +3,7 @@ const getConteneurData = (knex, filters) =>
     .clearSelect()
     .clearWhere()
     .clearOrder()
-    .select("id", "titre", "etat", "num", "date_publi")
+    .select()
     .from("conteneurs")
     .where(filters)
     .orderBy("date_publi", "desc")
