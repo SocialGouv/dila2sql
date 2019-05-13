@@ -188,4 +188,4 @@ const getStructure = async ({
     return result.rows.map(getRow);
   });
 
-module.exports = { getStructure, getRawStructure };
+module.exports = { getStructure, getRawStructure, getSommaireFilters };

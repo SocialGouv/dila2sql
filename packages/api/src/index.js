@@ -15,6 +15,8 @@ app.use(
   },
   require("./routes/texteStructure"),
   require("./routes/conteneurStructure"),
+  require("./routes/conventionTextes"),
+  require("./routes/texte"),
   require("./routes/section"),
   require("./routes/article"),
   require("./routes/tetier"),

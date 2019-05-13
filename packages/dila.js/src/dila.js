@@ -19,6 +19,7 @@ const dila = (knexConfig = null) => {
     getTetier: knexify(require("./getTetier")),
     getSommaireTexte: knexify(require("./getSommaire").getSommaireTexte),
     getSommaireConteneur: knexify(require("./getSommaire").getSommaireConteneur),
+    getConventionTextes: knexify(require("./getConventionTextes")),
     close: () => knex && knex.destroy(),
     knex
   };

@@ -4,12 +4,11 @@ const getDila = require("../getDila");
 const getStructure = require("../lib/getStructure");
 
 const getSommaireData = memoize(
-  (baseDILA, id, date, includeArticles, includeCalipsos) =>
+  (baseDILA, conteneurId, typeTextes, date) =>
     getDila(baseDILA).getSommaireConteneur({
-      id,
-      date,
-      includeArticles,
-      includeCalipsos
+      conteneurId,
+      typeTextes,
+      date
     }),
   { promise: true }
 );
