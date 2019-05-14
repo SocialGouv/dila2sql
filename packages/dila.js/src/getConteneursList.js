@@ -3,7 +3,7 @@ const getConteneursList = (knex, userFilters = {}) => {
     etat: ["VIGUEUR", "VIGUEUR_ETEN", "VIGUEUR_NON_ETEN"]
   };
   const whitelistedFilters = Object.keys(userFilters)
-    .filter(key => ["nature", "etat"].includes(key))
+    .filter(key => ["nature", "etat", "active"].includes(key))
     .reduce((obj, key) => ({ ...obj, [key]: userFilters[key] }), {});
 
   const filters = { ...defaultFilters, ...whitelistedFilters };
@@ -16,6 +16,9 @@ const getConteneursList = (knex, userFilters = {}) => {
   if (filters.nature) {
     if (filters.nature instanceof Array) query = query.whereIn("nature", filters.nature);
     else query = query.where("nature", filters.nature);
+  }
+  if (filters.hasOwnProperty("active")) {
+    query = query.where("active", filters.active);
   }
   return query.orderBy("date_publi", "desc");
 };

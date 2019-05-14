@@ -3,7 +3,7 @@ const { JSONlog } = require("../src/utils");
 
 // get code sommaire
 dila
-  .getConteneursList({ etat: ["VIGUEUR_ETEN"], nature: "TI" })
+  .getConteneursList({ nature: "IDCC", active: true })
   .then(JSONlog)
   .catch(console.log)
   .then(dila.close);
