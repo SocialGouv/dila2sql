@@ -53,15 +53,15 @@ Puis installez les dépendences Python :
 
 Cette commande lance le téléchargement incrémental des archives XML de la base LEGI et les sauvegarde dans `./data` :
 
-    python -m dila2sql.download --base LEGI --directory ./data
+    python -m dila2sql.runner --run-only downloader --base LEGI --dumps-dir ./data
 
 Cette commande parcourt incrémentalement les nouvelles archives de la base LEGI présentes dans `./data` et crée (ou met à jour) une base de données SQLite stockée dans `./data/LEGI.sqlite`.
 
-    python -m dila2sql.importer --base LEGI sqlite:///LEGI.sqlite --directory ./data
+    python -m dila2sql.runner --run-only importer --base LEGI --db-url sqlite:///LEGI.sqlite --dumps-dir ./data
 
 Commande équivalente pour la base KALI et une sortie Postgres :
 
-    python -m dila2sql.importer --base KALI --raw postgresql://dila2sql:dilamite@localhost/kali --directory ./data
+    python -m dila2sql.runner --run-only importer --base KALI --raw --db-url postgresql://dila2sql:dilamite@localhost/kali --dumps-dir ./data
 
 Pour lancer les tests il suffit de lancer `tox`
 

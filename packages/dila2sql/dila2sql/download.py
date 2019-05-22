@@ -1,5 +1,5 @@
 """
-Downloads the LEGI tarballs from the official FTP server.
+Downloads the missing DILA tar XML archives for a given base
 """
 
 import argparse
@@ -11,7 +11,7 @@ import asyncio
 import aiohttp
 import aiofiles
 import backoff
-
+from .default_options import DEFAULT_OPTIONS
 
 DILA_URL = "https://echanges.dila.gouv.fr/OPENDATA"
 
@@ -61,7 +61,7 @@ async def download_files(base, filenames, dst_dir):
         return await asyncio.gather(*tasks)
 
 
-def download_legi(dst_dir, base='LEGI'):
+def download_dumps(dst_dir=DEFAULT_OPTIONS["dumps-dir"], base=DEFAULT_OPTIONS["base"]):
     if not os.path.exists(dst_dir):
         os.mkdir(dst_dir)
     local_files = {filename: {} for filename in os.listdir(dst_dir)}
@@ -111,13 +111,3 @@ def download_legi(dst_dir, base='LEGI'):
     future = asyncio.ensure_future(download_files(base, files_to_download, dst_dir))
     loop.run_until_complete(future)
 
-
-if __name__ == '__main__':
-    p = argparse.ArgumentParser()
-    p.add_argument('--directory', default="/var/lib/dila2sql/original_dumps")
-    p.add_argument('--base', default='LEGI')
-    args = p.parse_args()
-    if args.base not in ["LEGI", "JORF", "KALI"]:
-        print('!> Non-existing database "'+args.base+'".')
-        raise SystemExit(1)
-    download_legi(args.directory, args.base)

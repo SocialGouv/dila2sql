@@ -22,11 +22,9 @@ docker-compose up -d
 # créer la base de donnée
 docker-compose exec db psql -U dila2sql -c "CREATE DATABASE kali"
 
-# lancer le téléchargement des dumps XML originaux depuis legifrance
-docker-compose run dila2sql python -m dila2sql.download --base KALI
-
-# lancer l'import de ces dumps dans la base Postgres
-docker-compose run dila2sql python -m dila2sql.importer --base KALI --raw postgresql://dila2sql:dila2sql@db/kali
+# lancer le téléchargement + l'imports des dumps XML originaux depuis
+# Legifrance dans une base Postgres
+docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw
 ```
 
 Ce processus peut être décliné pour les bases LEGI ou JORF.
@@ -59,6 +57,14 @@ Lancez les commandes en montant le code local vers le chemin du code applicatif 
 ```bash
 # Ex: lancer le téléchargement des dumps
 docker-compose run -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.download --base KALI
+```
+
+## Mise à jour quotidiennes
+
+```sh
+sudo crontab -e
+
+cd /home/incubateur/dila2sql && sudo docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw
 ```
 
 ## Contribuer
