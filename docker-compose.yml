@@ -28,6 +28,7 @@ services:
     image: dila2sql
     volumes:
       - original-dumps:/var/lib/dila2sql/original_dumps
+      - generated-dumps:/var/lib/dila2sql/generated_dumps
     environment:
       DB_HOST: db
       DB_USER: dila2sql

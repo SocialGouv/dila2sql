@@ -8,3 +8,4 @@ peewee
 psycopg2-binary
 tox
 xlrd
+bs4
