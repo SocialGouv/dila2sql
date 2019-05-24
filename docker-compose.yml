@@ -39,7 +39,7 @@ services:
       - generated-dumps:/srv
       - ./packages/dumps-static-server/Caddyfile:/etc/Caddyfile
     ports:
-      - "8020:2015"
+      - "8030:2015"
 volumes:
   original-dumps:
   generated-dumps:
