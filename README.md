@@ -64,7 +64,9 @@ docker-compose run -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.do
 ```sh
 sudo crontab -e
 
-cd /home/incubateur/dila2sql && sudo docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw
+0 3 * * * cd /home/incubateur/dila2sql && docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw >/dev/null 2>&1
+
+0 4 * * * cd /home/incubateur/dila2sql && docker-compose exec db /bin/sh /var/lib/dila2sql/scripts/dump_db.sh kali
 ```
 
 ## Contribuer
