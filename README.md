@@ -13,6 +13,18 @@ Le package `dila2sql` est un fork du projet [`legi.py`][legi.py] créé par [Leg
 Les packages `api` et `dilajs` ont été initialement créés par [@revolunet][revolunet] dans le cadre du projet [`legixplore`][legixplore].
 Nous les avons ensuite migrés dans ce mono-repository pour des raisons pratiques et logiques.
 
+## Bases SQL accessibles publiquement ☁️
+
+Pour permettre une réutilisation simple, le projet `dila2sql` est hébergé par l'[Incubateur des Ministères Sociaux][incubateur].
+
+L'incubateur propose un accès public gratuit aux bases SQL générées et mises à jour quotidiennement à cette adresse : [https://dumps.dila2sql.num.social.gouv.fr/](https://dumps.dila2sql.num.social.gouv.fr/)
+
+![](https://i.imgur.com/Bj8QtRf.png)
+
+*Note: La seule source officielle de droit est [Legifrance][legifrance], ces bases fournissent uniquement un accès informel plus pratique.*
+*Des erreurs peuvent avoir été introduites par ce projet.*
+
+
 ## Utilisation avec Docker
 
 ```bash
@@ -65,10 +77,8 @@ docker-compose run -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.do
 sudo crontab -e
 
 0 3 * * * cd /home/incubateur/dila2sql && docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw >/dev/null 2>&1
-
 0 4 * * * cd /home/incubateur/dila2sql && docker-compose exec db /bin/sh /var/lib/dila2sql/scripts/dump_db.sh kali
-0 4 * * * cd /home/incubateur/dila2sql && docker-compose exec dila2sql python -m dila2sql.scripts.export_conteneurs postgres://dila2sql:dila2sql@db/kali
-
+0 4 30 * * cd /home/incubateur/dila2sql && docker-compose run dila2sql python -m dila2sql.scripts.export_conteneurs postgres://dila2sql:dila2sql@db/kali
 ```
 
 ## Contribuer
@@ -95,3 +105,5 @@ Les [autres bases de la DILA][dila-bases] sont disponibles dans des dumps XML si
 [revolunet]: https://github.com/revolunet
 [legixplore]: https://github.com/SocialGouv/legixplore/
 [dila-bases]: https://www.dila.premier-ministre.gouv.fr/repertoire-des-informations-publiques/les-donnees-juridiques
+[incubateur]: https://incubateur.social.gouv.fr/
+[legifrance]: https://www.legifrance.gouv.fr/

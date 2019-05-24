@@ -20,21 +20,6 @@ Le projet supporte en sortie les formats PostgreSQL et SQLite.
 - nettoyage des données textuelles (normalisation des titres, fautes de français)
 - détection d'anomalies
 
-## Bases SQL accessibles publiquement - À venir bientôt
-
-Pour permettre une réutilisation simple, le projet `dila2sql` est hébergé par l'[Incubateur des Ministères Sociaux][incubateur].
-
-L'incubateur fournira (bientôt) un accès public gratuit aux bases SQL générées et mises à jour quotidiennement :
-
-- LEGI : [fichier SQLite][legi-sqlite] | [dump SQL Postgres][legi-postgres]
-- KALI : [fichier SQLite][kali-sqlite] | [dump SQL Postgres][kali-postgres]
-- JORF : [fichier SQLite][jorf-sqlite] | [dump SQL Postgres][jorf-postgres]
-
-~~[badge date mise à jour]~~
-
-*Note: La seule source officielle de droit est [Legifrance][legifrance], ces bases fournissent uniquement un accès informel plus pratique.*
-*Des erreurs peuvent avoir été introduites par ce projet.*
-
 ## Utilisation Locale
 
 Voici quelques informations pour lancer vous même le projet sur votre machine, avec ou sans Docker
@@ -125,6 +110,5 @@ De même en cas de problème lors du lancement des tests, essayez avec cette com
 [kali-postgres]: https://dila2sql.num.social.gouv.fr/exports/postgres/KALI.sql
 [jorf-sqlite]: https://dila2sql.num.social.gouv.fr/exports/sqlite/JORF.sqlite
 [jorf-postgres]: https://dila2sql.num.social.gouv.fr/exports/postgres/JORF.sql
-[legifrance]: https://www.legifrance.gouv.fr/
 [libarchive]: http://libarchive.org/
 [libarchive-bug]: https://github.com/dsoprea/PyEasyArchive#notes
