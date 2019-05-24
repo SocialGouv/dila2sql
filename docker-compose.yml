@@ -9,7 +9,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - generated-dumps:/var/lib/dila2sql/generated_dumps
-      - $PWD/scripts:/var/lib/dila2sql/scripts
+      - ./scripts:/var/lib/dila2sql/scripts
     ports:
       - "5442:5432"  # just for external
   api:
@@ -37,7 +37,7 @@ services:
     restart: always
     volumes:
       - generated-dumps:/srv
-      - $PWD/packages/dumps-static-server/Caddyfile:/etc/Caddyfile
+      - ./packages/dumps-static-server/Caddyfile:/etc/Caddyfile
     ports:
       - "8020:2015"
 volumes:
