@@ -20,7 +20,7 @@ services:
     environment:
       DB_URL: postgresql://dila2sql:dila2sql@db/kali
     ports:
-      - "3001:8080"
+      - "8010:8080"
   dila2sql:
     build:
       context: ./packages/dila2sql
