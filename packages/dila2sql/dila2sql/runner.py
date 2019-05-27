@@ -6,6 +6,8 @@ import argparse
 from .default_options import DEFAULT_OPTIONS
 from .download import download_dumps
 from .importer.importer import run_importer
+from .monitoring import init_monitoring
+init_monitoring()
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()

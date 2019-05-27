@@ -33,6 +33,8 @@ services:
       DB_HOST: db
       DB_USER: dila2sql
       DB_PASSWORD: dila2sql
+    env_file:
+      - ./packages/dila2sql/.env
   dumps-static-server:
     image: abiosoft/caddy
     restart: always

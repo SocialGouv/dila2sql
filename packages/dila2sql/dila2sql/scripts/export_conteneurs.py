@@ -7,6 +7,9 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 import pathlib
 import datetime
+from dila2sql.monitoring import init_monitoring
+init_monitoring()
+
 
 DEFAULT_OUTPUT_DIR = "/var/lib/dila2sql/generated_dumps"
 

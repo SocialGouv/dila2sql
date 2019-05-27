@@ -50,6 +50,8 @@ Commande équivalente pour la base KALI et une sortie Postgres :
 
 Pour lancer les tests il suffit de lancer `tox`
 
+La configuration passe par un fichier de variables d'environnement, vous pouvez copier le template : `cp .env.sample .env`
+
 ### Avec Docker
 
 Une image Docker `socialgouv/dila2sql` est hébergée sur DockerHub par l'[Incubateur des Ministères Sociaux][incubateur].
@@ -67,6 +69,7 @@ Vous pouvez aussi développer dans l'image Docker en ajoutant `-v $PWD:/app` au 
 Vous pouvez aussi lancer les tests dans l'image Docker grâce à cette commande :
 
     docker run --rm -t -v $PWD/data:/data socialgouv/dila2sql tox
+
 
 ### Parallélisme
 

@@ -10,3 +10,4 @@
 /tarballs/
 /data
 *.xls
+.env
