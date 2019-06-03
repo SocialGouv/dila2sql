@@ -8,10 +8,7 @@ Ce mono-repository contient trois packages:
 - `dilajs`: librairie NodeJS qui permet d'accéder à une base PostgreSQL générée par `dila2sql`
 - `api`: API Express qui expose la base générée en utilisant `dila.js`
 
-Le package `dila2sql` est un fork du projet [`legi.py`][legi.py] créé par [Legilibre][legilibre] et [@Changaco][changaco].
-
-Les packages `api` et `dilajs` ont été initialement créés par [@revolunet][revolunet] dans le cadre du projet [`legixplore`][legixplore].
-Nous les avons ensuite migrés dans ce mono-repository pour des raisons pratiques et logiques.
+Le package `dila2sql` est un fork du projet [`legi.py`][legi.py] créé par [Legilibre][legilibre] et [@Changaco][changaco] et [contributeurs](https://github.com/SocialGouv/dila2sql/graphs/contributors).
 
 ## Bases SQL accessibles publiquement ☁️
 
@@ -21,11 +18,12 @@ L'incubateur propose un accès public gratuit aux bases SQL générées et mises
 
 ![](https://i.imgur.com/Bj8QtRf.png)
 
-*Note: La seule source officielle de droit est [Legifrance][legifrance], ces bases fournissent uniquement un accès informel plus pratique.*
-*Des erreurs peuvent avoir été introduites par ce projet.*
-
+_Note: La seule source officielle de droit est [Legifrance][legifrance], ces bases fournissent uniquement un accès informel plus pratique._
+_Des erreurs peuvent avoir été introduites par ce projet._
 
 ## Utilisation avec Docker
+
+Créer `dila2sql/.env` depuis [`dila2sql/.env.sample`](./packages/dila2sql/.env.sample)
 
 ```bash
 # lancer tous les containers
@@ -36,7 +34,7 @@ docker-compose exec db psql -U dila2sql -c "CREATE DATABASE kali"
 
 # lancer le téléchargement + l'imports des dumps XML originaux depuis
 # Legifrance dans une base Postgres
-docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw
+docker-compose run --rm dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw
 ```
 
 Ce processus peut être décliné pour les bases LEGI ou JORF.
