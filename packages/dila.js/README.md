@@ -1,10 +1,10 @@
-# legi.js [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
+# dila.js [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-[![npm](https://img.shields.io/npm/v/legi.svg)](https://www.npmjs.com/package/dila)
+[![npm](https://img.shields.io/npm/v/dila.svg)](https://www.npmjs.com/package/dila)
 ![license](https://img.shields.io/npm/l/dila.svg)
-[![github-issues](https://img.shields.io/github/issues/revolunet/legi.js.svg)](https://github.com/SocialGouv/dila2sql/issues)
+[![github-issues](https://img.shields.io/github/issues/revolunet/dila.js.svg)](https://github.com/SocialGouv/dila2sql/issues)
 
-[![nodei.co](https://nodei.co/npm/legi.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/dila)
+[![nodei.co](https://nodei.co/npm/dila.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/dila)
 
 Une API NodeJS pour requêter les textes de loi bruts issus d'une base [dila2sql](https://github.com/SocialGouv/dila2sql)
 
