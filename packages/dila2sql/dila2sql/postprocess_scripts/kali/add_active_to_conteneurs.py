@@ -21,11 +21,11 @@ def add_column(db):
         ADD COLUMN IF NOT EXISTS active BOOLEAN;
     """)
 
-
+# cf https://travail-emploi.gouv.fr/dialogue-social/negociation-collective/article/conventions-collectives-nomenclatures
 def get_url(month_offset=0):
     return (
         f"https://travail-emploi.gouv.fr/IMG/xls/" +
-        "idcc" +
+        "dares_donnes_identifiant_convention_collective_" +
         MONTHS[today.month - 1 - month_offset] +
         str(today.year)[-2:] +
         ".xls"
@@ -46,6 +46,7 @@ def download_file_and_open_xls_sheet():
         response = urllib.request.urlopen(url)
     fp.write(response.read())
     print("file downloaded!")
+    fp.seek(0)
     return xlrd.open_workbook(fp.name).sheet_by_index(0)
     fp.close()
 
