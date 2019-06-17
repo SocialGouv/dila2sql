@@ -156,13 +156,15 @@ CREATE VIEW textes_versions_brutes_view AS
         ON b.id = a.id AND b.cid = a.cid AND b.dossier = a.dossier AND b.mtime = a.mtime;
 
 CREATE TABLE conteneurs
-( id           text   unique not null
-, titre        text
-, etat         text
-, nature       text
-, num          text
-, date_publi   date
-, mtime        int           not null
+( id             text   unique not null
+, titre          text
+, etat           text
+, nature         text
+, num            text
+, date_publi     date
+, texte_de_base  text
+, active         boolean
+, mtime          int           not null
 );
 
 CREATE INDEX conteneurs_id_idx ON conteneurs (id);
