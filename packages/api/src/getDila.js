@@ -1,6 +1,7 @@
 const Dila = require("dila");
+const memoize = require("memoizee");
 
-const getDila = baseDILA => {
+const getDila = memoize(baseDILA => {
   if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
     return new Dila({
       connection: {
@@ -14,6 +15,6 @@ const getDila = baseDILA => {
   } else {
     return new Dila();
   }
-};
+});
 
 module.exports = getDila;

@@ -1205,8 +1205,10 @@ diff@^3.2.0:
   resolved "https://registry.yarnpkg.com/diff/-/diff-3.5.0.tgz#800c0dd1e0a8bfbc95835c202ad220fe317e5a12"
   integrity sha512-A46qtFgd+g7pDZinpnwiRJtxbC1hpgf0uzP3iG89scHk0AUC7A1TGxf5OiiOUv/JMZR8GOt8hL900hV0bOy5xA==
 
-"dila@file:../dila.js":
-  version "2.2.0"
+dila@^2.2.3:
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/dila/-/dila-2.2.3.tgz#3eb4fb1e53ffeed5636c57e56b18ca50a84c2a44"
+  integrity sha512-/heSPb9o9qAszkfZzNtImWjulpxksY1sBJMpQ8WjAFU/iiqkz3DXsPsuzYBh1evQ/FmyJYEgC/jzAF30aJKcTw==
   dependencies:
     condense-whitespace "^1.0.0"
     eslint "^4.18.2"
