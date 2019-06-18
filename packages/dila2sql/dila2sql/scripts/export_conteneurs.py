@@ -56,11 +56,9 @@ HIERARCHIE_SQL = """
 
 def write_csv(db, output_dir):
     output_path = pathlib.Path(output_dir) / datetime.datetime.now().strftime("%Y-%m-%d")
-    html_path = pathlib.Path(output_path) / 'exports_html'
-    txt_path = pathlib.Path(output_path) / 'txt_html'
+    txt_path = pathlib.Path(output_path) / 'exports_txt'
 
     output_path.mkdir(parents=True, exist_ok=True)
-    html_path.mkdir(parents=True, exist_ok=True)
     txt_path.mkdir(parents=True, exist_ok=True)
 
     conteneurs = db.execute_sql("""
@@ -77,7 +75,6 @@ def write_csv(db, output_dir):
     csv_writer.writerow(["id", "num", "titre", "textes_count", "articles_count", "word_counts"])
     for conteneur_id, conteneur_num, conteneur_titre in tqdm(list(conteneurs)):
         txt_file = open(txt_path / ('convention_%s.txt' % conteneur_num), 'w')
-        html_file = open(html_path / ('convention_%s.html' % conteneur_num), 'w')
         textes = db.execute_sql(
             HIERARCHIE_SQL % (conteneur_id, ) +
             """
@@ -97,14 +94,11 @@ def write_csv(db, output_dir):
                 WHERE SUBSTR(hierarchie.element, 5, 4) = 'ARTI'
             """
         )
-        html_file.write(f"<h1>IDCC {conteneur_num} -    {conteneur_titre}</h1>")
         for article in articles:
             bloc_textuel, titre, num = article
-            html_file.write(f"<h2>Article {num if num else ''}{' - ' + titre if titre is not None else ''}</h2>")
             article_counts[conteneur_id] += 1
             if bloc_textuel is None:
                 continue
-            html_file.write(bloc_textuel + '\n')
             soup = BeautifulSoup(bloc_textuel)
             text = soup.text
             if text is None:
@@ -113,7 +107,6 @@ def write_csv(db, output_dir):
             count = len([x.strip() for x in text.split(" ")])
             word_counts[conteneur_id] += count
         txt_file.close()
-        html_file.close()
         csv_writer.writerow([
             conteneur_id, conteneur_num, conteneur_titre,
             textes_count,

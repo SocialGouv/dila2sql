@@ -1,0 +1,49 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>
+      Convention Collective
+      - IDCC {{ conteneur["num"] }}
+      - {{ conteneur["titre"] }}
+    </title>
+  </head>
+  <body>
+    <h1>
+      <span class='item-type'>Convention</span>
+      IDCC {{ conteneur["num"] }} - {{ conteneur["titre"] }}
+    </h1>
+
+    {% for type_texte, textes in textes_by_type.items() %}
+      <h2 class='item-type'>Textes de {{ type_texte }}</h2>
+      {% for texte in textes %}
+        <h2>
+          <span class='item-type'>Texte</span>
+          {{ texte["data"]["titre"] }}
+        </h2>
+
+        {% for item in texte["children"] recursive %}
+          {% if item['type'] == 'article' %}
+            <h4>
+              <span class='item-type'>Article</span>
+              {{ item['num'] }} - {{ item['data']['titre'] }}
+            </h4>
+          {% elif item["type"] == "section" %}
+            <h3>
+              <span class='item-type'>Section</span>
+              {{ item['data']['titre'] }}
+            </h3>
+          {% endif %}
+          {{ item["data"].get("bloc_textuel", "") | safe }}
+
+          {{ loop(item["children"]) }}
+        {% endfor %}
+      {% endfor %}
+    {% endfor %}
+  </body>
+
+  <style>
+    .item-type {
+      color: #555;
+    }
+  </style>
+</html>

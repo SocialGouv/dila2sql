@@ -10,4 +10,5 @@ tox
 xlrd
 bs4
 sentry-sdk==0.8.0
-
+requests
+jinja2
