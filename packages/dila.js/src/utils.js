@@ -59,7 +59,7 @@ const cleanTitle = str =>
 
 const cleanData = (
   obj,
-  titres = ["titre", "titrefull", "nota", "commentaire", "bloc_textuel"]
+  titres = ["titre", "titrefull", "nota", "commentaire"]
 ) =>
   (obj && {
     ...Object.keys(obj)
