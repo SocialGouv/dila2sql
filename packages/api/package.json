@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dila": "^2.2.5",
+    "dila": "^2.2.6",
     "express": "^4.16.3",
     "memoizee": "^0.4.14",
     "unist-util-find": "^1.0.1",
