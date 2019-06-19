@@ -3,8 +3,8 @@ const { JSONlog } = require("../src/utils");
 
 dila
   .getConventionTextes({
-    conteneurId: "KALICONT000005635691",
-    typeTextes: "extensions",
+    conteneurId: "KALICONT000005635325",
+    typeTextes: "base",
     date: "2019-01-01"
   })
   .then(JSONlog)

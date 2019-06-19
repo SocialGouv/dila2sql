@@ -27,6 +27,7 @@ const getConventionTextes = async (knex, { conteneurId, typeTextes, date }) => {
     LEFT JOIN textes_versions ON textes_versions.id = sommaires.element
     WHERE ${getSommaireFilters(date)}
     AND sommaires.parent = '${tetierId}'
+    AND textes_versions.id IS NOT NULL
   `;
   const textes = await knex.raw(textesSql).then(res => res.rows);
   return { textes };
