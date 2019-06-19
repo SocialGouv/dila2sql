@@ -174,18 +174,16 @@ const getStructure = async ({
     const getRow = row => {
       const itemType = getItemType(row);
       const item = cache[itemTypeToTable(itemType)].find(item => item.id === row.id);
-      if (!item) {
-        throw Error(
-          `no match in cache for item ${row.id} - ${itemType} - ${itemTypeToTable(itemType)}`
-        );
-      }
+      if (!item) return null;
+      // this should not happen. I'd like to warn here (not raise),
+      // but I don't know how to do it in node, I don't have access to Sentry here
       return makeItem(itemType)({
         ...item,
         position: row.position,
         parent: row.parent
       });
     };
-    return result.rows.map(getRow);
+    return result.rows.map(getRow).filter(x => x !== null);
   });
 
 module.exports = { getStructure, getRawStructure, getSommaireFilters };
