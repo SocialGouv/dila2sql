@@ -3,6 +3,8 @@ import os.path
 import re
 import sre_parse
 import traceback
+import collections
+from itertools import islice
 from unicodedata import combining, decomposition, normalize
 from peewee import SqliteDatabase, PostgresqlDatabase, ProgrammingError, IntegrityError
 from playhouse.db_url import connect
@@ -255,10 +257,22 @@ def json_serializer(obj):
     raise TypeError("Type %s not serializable" % type(obj))
 
 
-def progressbar(iterable):
+def consume(iterator, n):
+    # from  https://stackoverflow.com/a/16800855
+    "Advance the iterator n-steps ahead. If n is none, consume entirely."
+    # Use functions that consume iterators at C speed.
+    if n is None:
+        # feed the entire iterator into a zero-length deque
+        collections.deque(iterator, maxlen=0)
+    else:
+        # advance to the empty slice starting at position n
+        next(islice(iterator, n, n), None)
+
+
+def progressbar(iterable, **kwargs):
     try:
         from tqdm import tqdm
-        return tqdm(iterable)
+        return tqdm(iterable, **kwargs)
     except ImportError:
         print('[warning] tqdm is not installed, the progress bar is disabled')
         return iterable
