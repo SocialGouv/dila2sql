@@ -35,7 +35,7 @@ def run_importer(
     if not base_from_db:
         DBMeta.create(key='base', value=base)
     if base and base != base_from_db:
-        print('!> Wrong database: requested '+base+' but existing database is '+base_from_db+'.')
+        print(f"!> Wrong database: requested '{base}' but existing database is '{base_from_db}")
         raise SystemExit(1)
 
     if base != 'LEGI' and not raw:
