@@ -72,7 +72,7 @@ Lancez les commandes en montant le code local vers le chemin du code applicatif 
 
 ```bash
 # Ex: lancer le téléchargement des dumps
-docker-compose run -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.download --base KALI
+docker-compose run --rm -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.download --base KALI
 ```
 
 ## Mise à jour quotidiennes
@@ -80,7 +80,7 @@ docker-compose run -v $PWD/packages/dila2sql:/app dila2sql python -m dila2sql.do
 ```sh
 sudo crontab -e
 
-0 3 * * * cd /home/incubateur/dila2sql && docker-compose run dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw >/dev/null 2>&1
+0 3 * * * cd /home/incubateur/dila2sql && docker-compose run --rm dila2sql python -m dila2sql.runner --db-url postgresql://dila2sql:dila2sql@db/kali --base KALI --raw >/dev/null 2>&1
 0 4 * * * cd /home/incubateur/dila2sql && docker-compose exec db /bin/sh /var/lib/dila2sql/scripts/dump_db.sh kali
 30 4 * * * cd /home/incubateur/dila2sql && docker-compose run --rm dila2sql python -m dila2sql.scripts.export_conteneurs postgres://dila2sql:dila2sql@db/kali
 0 5 * * * cd /home/incubateur/dila2sql && docker-compose run --rm dila2sql python3 -m dila2sql.html_exporter.html_exporter --api-url http://api:8080

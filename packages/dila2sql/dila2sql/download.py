@@ -40,18 +40,18 @@ def filter_link(filename, base):
         or bool(re.match(r"Freemium_%s_(global)?_[0-9\-]+\.tar\.gz" % base.lower(), filename))
 
 
-@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_time=20)
+@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_tries=3)
 async def download_file(base, filename, dst_dir, session):
     filepath = os.path.join(dst_dir, filename)
     url = "%s/%s/%s" % (DILA_URL, base, filename)
-    async with session.get(url) as resp:
-        if resp.status == 200:
-            f = await aiofiles.open(filepath, mode='wb')
-            await f.write(await resp.read())
-            await f.close()
+    async with session.get(url, timeout=None) as resp:
+        f = await aiofiles.open(filepath, mode='wb')
+        async for data in resp.content.iter_chunked(1024):
+            await f.write(data)
+        await f.close()
 
 
-@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_time=20)
+@backoff.on_exception(backoff.expo, HANDLED_EXCEPTIONS, max_tries=3)
 async def download_files(base, filenames, dst_dir):
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=10)) as session:
         tasks = [
