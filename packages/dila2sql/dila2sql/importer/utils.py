@@ -17,3 +17,8 @@ def get_table(parts):
         elif parts[0] == 'kali':
             table += parts[3] + 's'
     return table
+
+def merge_counts(sub_counts, sub_skipped, counts, skipped):
+    skipped += sub_skipped
+    for key, count in sub_counts.items():
+        counts[key] += count

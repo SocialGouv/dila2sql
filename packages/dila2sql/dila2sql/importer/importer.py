@@ -7,7 +7,7 @@ from fnmatch import fnmatch
 import os
 import re
 
-from .process_archive import process_archive
+from .archive_processor import ArchiveProcessor
 from dila2sql.anomalies import detect_anomalies
 from dila2sql.utils import connect_db, partition
 from dila2sql.models import db_proxy, DBMeta, TexteVersionBrute, Lien
@@ -34,7 +34,7 @@ def run_importer(
 
     if not base_from_db:
         DBMeta.create(key='base', value=base)
-    if base and base != base_from_db:
+    elif base and base != base_from_db:
         print(f"!> Wrong database: requested '{base}' but existing database is '{base_from_db}")
         raise SystemExit(1)
 
@@ -95,7 +95,11 @@ def run_importer(
     # Process the new archives
     for archive_date, is_global, archive_name in archives:
         print("> Processing %s..." % archive_name)
-        process_archive(db, db_url, dumps_directory + '/' + archive_name, not skip_links)
+        archive_processor = ArchiveProcessor(
+            db, db_url, dumps_directory + '/' + archive_name,
+            process_links=not skip_links
+        )
+        archive_processor.run()
         DBMeta.insert(key='last_update', value=archive_date) \
             .on_conflict(conflict_target=[DBMeta.key], preserve=[DBMeta.value]) \
             .execute()
