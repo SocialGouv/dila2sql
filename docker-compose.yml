@@ -13,6 +13,7 @@ services:
     ports:
       - "5442:5432"  # just for external
   api:
+    restart: always
     build:
       context: ./packages/api
       dockerfile: ./Dockerfile
