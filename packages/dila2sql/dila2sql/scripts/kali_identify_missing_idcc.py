@@ -2,64 +2,61 @@ from argparse import ArgumentParser
 from dila2sql.utils import connect_db
 from dila2sql.models import db_proxy, Conteneur
 import csv
+import datetime
 from dila2sql.postprocess_scripts.kali.add_active_to_conteneurs \
     import download_file_and_open_xls_sheet, get_active_idccs
+
+# script used to generate https://docs.google.com/spreadsheets/d/12vrmr5XHaqvmCHIgfANjHXieYwisew4nM2LJ6_pmjqQ
 
 MISSING_FILE_PATH = './missing_idccs.%s.csv'
 
 
-def identify_missing(
-    xls_sheet, num_lower_bound=0, num_upper_bound=9999, group='all'
-):
-    idccs_in_xls = [
-        num for num in active_idccs
-        if int(num) >= num_lower_bound and int(num) < num_upper_bound
-    ]
-    print(
-        f"there are {len(idccs_in_xls)} active IDCCs "
-        f"from the {group} in the XLS"
+def identify_missing(xls_sheet, active_idccs):
+    conteneurs = list(
+        Conteneur.select(Conteneur.num).where(Conteneur.num.in_(active_idccs))
     )
-    conteneurs = Conteneur \
-        .select(Conteneur.num) \
-        .where(Conteneur.num.in_(idccs_in_xls))
-    idccs_in_kali = [c.num for c in conteneurs]
     print(
-        f"found {len(idccs_in_kali)} IDCCs amongst these "
-        f"from the {group} in the KALI DB"
+        f"found {len(conteneurs)}/{len(active_idccs)} active IDCCs in KALI"
     )
-    missing_ones = set(idccs_in_xls) - set(idccs_in_kali)
-    missing_pairs = []
+    idccs_in_kali = [int(c.num) for c in conteneurs]
+    new_rows = []
     for idx, row in enumerate(xls_sheet.get_rows()):
         if idx < 4:
             continue
-        row_idcc = str(int(row[0].value))
-        if row_idcc in missing_ones:
-            missing_pairs.append([row_idcc, row[1].value])
-    file_path = MISSING_FILE_PATH % group
+        row_idcc = int(row[0].value)
+        new_rows.append({
+            "idcc": str(row_idcc),
+            "name": row[1].value,
+            "group": idcc_to_group(row_idcc),
+            "in_kali": "TRUE" if row_idcc in idccs_in_kali else None,
+        })
+    human_date = datetime.datetime.now().strftime('%Y_%m_%d')
+    file_path = f"active_idccs_{human_date}.csv"
     with open(file_path, 'w') as f:
-        writer = csv.writer(f)
-        writer.writerows([["idcc", "name"]])
-        writer.writerows(missing_pairs)
-    if len(missing_ones) != len(missing_pairs):
-        raise "error when looking for missing idccs"
-    print(
-        f"wrote {len(missing_pairs)} missing {group} IDCCs "
-        f"to {file_path}"
-    )
+        writer = csv.DictWriter(f, fieldnames=["idcc", "name", "group", "in_kali"])
+        writer.writeheader()
+        writer.writerows(new_rows)
+    print(f"wrote {len(new_rows)} IDCCs to {file_path}")
+
+
+def idcc_to_group(idcc):
+    if idcc >= 0 and idcc <= 3999:
+        return 'DGT'
+    elif idcc >= 5000 and idcc <= 5999:
+        return 'DARES'
+    elif idcc >= 7000 and idcc <= 9999:
+        return 'AGRICULTURE'
 
 
 if __name__ == '__main__':
     p = ArgumentParser()
-    p.add_argument('db')
+    p.add_argument('--db-url')
     p.add_argument('--identify-missing', action='store_true')
-    p.add_argument('--force-download', action='store_true')
     args = p.parse_args()
 
-    db = connect_db(args.db)
+    db = connect_db(args.db_url)
     db_proxy.initialize(db)
 
     xls_sheet = download_file_and_open_xls_sheet()
     active_idccs = get_active_idccs(xls_sheet)
-    identify_missing(xls_sheet, 0, 3999, 'DGT')
-    identify_missing(xls_sheet, 5000, 5999, 'DARES')
-    identify_missing(xls_sheet, 7000, 9999, 'AGRICULTURE')
+    identify_missing(xls_sheet, active_idccs)
