@@ -28,7 +28,9 @@ const getConventionTextes = async (knex, { conteneurId, typeTextes, date }) => {
     WHERE ${getSommaireFilters(date)}
     AND sommaires.parent = '${tetierId}'
     AND textes_versions.id IS NOT NULL
+    ORDER BY id DESC
   `;
+  // this ordering is a hack to replicate a created_at desc sorting
   const textes = await knex.raw(textesSql).then(res => res.rows);
   return { textes };
 };
